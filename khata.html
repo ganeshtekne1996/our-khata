@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Our Khata</title>
+<meta name="theme-color" content="#1E5A8C">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-navy:#1E5A8C;
+    --ink-navy-2:#2E7BB8;
+    --paper:#F3FAFF;
+    --paper-2:#E7F3FC;
+    --rule:#BFE0F5;
+    --margin-red:#B33A3A;
+    --credit-green:#2F6B4F;
+    --gold:#C9852A;
+    --text-dark:#1B2A38;
+    --text-muted:#5C7A91;
+    --text-light:#EAF6FF;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:linear-gradient(180deg, #D6ECFB 0%, #BFE0F5 100%);
+    min-height:100vh;
+    font-family:'Inter',sans-serif;
+    color:var(--text-dark);
+    padding:24px 12px 60px;
+    display:flex;
+    justify-content:center;
+  }
+  .book{
+    width:100%;
+    max-width:460px;
+  }
+  .page{
+    background:var(--paper);
+    box-shadow:0 10px 30px rgba(30,90,140,.18);
+    padding:22px 18px 26px;
+    border-radius:14px;
+  }
+  header.title-row{
+    position:relative;
+    z-index:1;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:14px;
+  }
+  h1{
+    font-family:'Roboto Slab',serif;
+    font-size:22px;
+    margin:0;
+    letter-spacing:.01em;
+  }
+  .subtitle{
+    font-size:12px;
+    color:var(--text-muted);
+    margin-top:2px;
+  }
+  .btn-settings{
+    background:none;
+    border:1px solid var(--text-muted);
+    color:var(--text-muted);
+    border-radius:20px;
+    font-size:11px;
+    padding:5px 10px;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .btn-settings:hover{ border-color:var(--text-dark); color:var(--text-dark); }
+
+  .balance-card{
+    position:relative; z-index:1;
+    background:var(--ink-navy);
+    color:var(--text-light);
+    border-radius:10px;
+    padding:16px 18px;
+    margin-bottom:16px;
+    text-align:center;
+  }
+  .balance-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.12em;
+    color:#B9C2D0;
+  }
+  .balance-amount{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:30px;
+    font-weight:600;
+    margin:4px 0 2px;
+  }
+  .balance-amount.positive{ color:#7FD9A6; }
+  .balance-amount.negative{ color:#E48989; }
+  .balance-amount.zero{ color:var(--gold); }
+  .balance-sub{ font-size:11.5px; color:#9BA5B5; }
+  .mini-tally{
+    display:flex;
+    justify-content:center;
+    gap:18px;
+    margin-top:10px;
+    font-size:11.5px;
+    color:#B9C2D0;
+  }
+  .mini-tally b{ font-family:'IBM Plex Mono',monospace; }
+
+  .form-card{
+    position:relative; z-index:1;
+    background:var(--paper-2);
+    border:1px solid #E1D6BB;
+    border-radius:10px;
+    padding:14px;
+    margin-bottom:18px;
+  }
+  .form-row{ display:flex; gap:8px; margin-bottom:8px; }
+  .form-row > div{ flex:1; }
+  label.field-label{
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--text-muted);
+    display:block;
+    margin-bottom:3px;
+  }
+  input[type=number], input[type=date], input[type=text], select{
+    width:100%;
+    border:1px solid #D8CDAF;
+    background:#fff;
+    border-radius:6px;
+    padding:9px 10px;
+    font-size:14.5px;
+    font-family:'Inter',sans-serif;
+    color:var(--text-dark);
+  }
+  select{ appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238A7F68'%3E%3Cpath d='M5.5 7.5l4.5 4.5 4.5-4.5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; background-size:14px; padding-right:30px; }
+  select.invalid{ border-color:var(--margin-red); }
+  input[type=number]{ font-family:'IBM Plex Mono',monospace; font-weight:600; }
+  input:focus, select:focus{ outline:2px solid var(--gold); outline-offset:1px; }
+
+  .book-row{
+    position:relative; z-index:30;
+    display:flex; gap:6px; align-items:center;
+    margin-bottom:14px;
+  }
+  .book-row select{ flex:1; font-family:'Roboto Slab',serif; font-weight:500; }
+
+  .menu-wrap{ position:relative; flex-shrink:0; z-index:30; }
+  .menu-dropdown{
+    position:absolute; top:calc(100% + 6px); right:0;
+    background:#fff; border:1px solid var(--rule); border-radius:10px;
+    box-shadow:0 8px 24px rgba(30,90,140,.2);
+    min-width:170px; overflow:hidden; z-index:30;
+  }
+  .menu-item{
+    display:block; width:100%; text-align:left;
+    background:none; border:none; border-bottom:1px solid var(--rule);
+    padding:11px 14px; font-size:13px; font-family:'Inter',sans-serif;
+    color:var(--text-dark); cursor:pointer;
+  }
+  .menu-item:last-child{ border-bottom:none; }
+  .menu-item:hover{ background:var(--paper-2); }
+  .menu-item.danger{ color:var(--margin-red); }
+
+  .who-toggle{
+    display:flex; gap:6px; margin-bottom:10px;
+  }
+  .who-pill{
+    flex:1;
+    text-align:center;
+    padding:7px 6px;
+    border-radius:20px;
+    border:1px solid #D8CDAF;
+    background:#fff;
+    font-size:12.5px;
+    cursor:pointer;
+    color:var(--text-muted);
+  }
+  .who-pill.active{
+    background:var(--ink-navy);
+    color:var(--text-light);
+    border-color:var(--ink-navy);
+  }
+
+  .action-row{ display:flex; gap:8px; margin-top:4px; }
+  .btn-action{
+    flex:1;
+    border:none;
+    border-radius:8px;
+    padding:12px 8px;
+    font-family:'Roboto Slab',serif;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:.03em;
+    cursor:pointer;
+    opacity:.4;
+    pointer-events:none;
+    transition:opacity .15s ease, transform .1s ease;
+    color:#fff;
+  }
+  .btn-action.enabled{ opacity:1; pointer-events:auto; }
+  .btn-action.enabled:active{ transform:scale(.97); }
+  .btn-gave{ background:var(--margin-red); }
+  .btn-got{ background:var(--credit-green); }
+
+  .section-label{
+    position:relative; z-index:1;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    color:var(--text-muted);
+    margin:4px 0 8px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .link-btn{
+    background:none; border:none; color:var(--margin-red);
+    font-size:11px; cursor:pointer; text-decoration:underline;
+    font-family:'Inter',sans-serif; padding:0;
+  }
+
+  .day-group{ margin-bottom:10px; }
+  .entry{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 12px;
+    gap:8px;
+    background:var(--paper-2);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    margin-bottom:8px;
+    box-shadow:0 1px 3px rgba(30,90,140,.08);
+  }
+  .entry-left{ min-width:0; }
+  .entry-note{
+    font-size:13.5px;
+    color:var(--text-dark);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .entry-meta{ font-size:11px; color:var(--text-muted); margin-top:1px; }
+  .entry-tag{
+    display:inline-block; font-size:10px; color:var(--text-muted);
+    background:#fff;
+    border:1px solid var(--rule); border-radius:10px; padding:1px 7px; margin-top:3px;
+  }
+  .entry-right{ text-align:right; flex-shrink:0; }
+  .entry-amount{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:14.5px;
+  }
+  .entry-amount.gave{ color:var(--margin-red); }
+  .entry-amount.got{ color:var(--credit-green); }
+  .entry-balance{ font-size:10.5px; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; }
+  .entry-menu-wrap{ position:relative; flex-shrink:0; }
+  .entry-menu-btn{
+    background:none; border:1px solid var(--rule); color:var(--text-muted);
+    border-radius:14px; font-size:11px; padding:5px 9px; cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .entry-menu-btn:hover{ border-color:var(--ink-navy); color:var(--ink-navy); }
+  .entry-menu-dropdown{
+    position:absolute; top:calc(100% + 6px); right:0;
+    background:#fff; border:1px solid var(--rule); border-radius:10px;
+    box-shadow:0 8px 24px rgba(30,90,140,.2);
+    min-width:120px; overflow:hidden; z-index:30;
+  }
+
+  .empty-state{
+    position:relative; z-index:1;
+    text-align:center;
+    padding:30px 10px;
+    color:var(--text-muted);
+    font-size:13px;
+  }
+
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(27,36,48,.55);
+    display:flex; align-items:center; justify-content:center; z-index:10;
+    padding:16px;
+  }
+  .modal{
+    background:var(--paper); border-radius:10px; padding:18px; width:100%; max-width:340px;
+  }
+  .modal h3{ font-family:'Roboto Slab',serif; margin:0 0 12px; font-size:16px; }
+  .modal .field-label{ margin-top:10px; }
+  .modal-buttons{ display:flex; gap:8px; margin-top:16px; }
+  .modal-buttons button{ flex:1; padding:9px; border-radius:6px; border:none; cursor:pointer; font-size:13px; }
+  .btn-cancel{ background:#E7DFC9; color:var(--text-dark); }
+  .btn-save{ background:var(--ink-navy); color:var(--text-light); }
+  .btn-danger{ background:var(--margin-red); color:#fff; }
+
+  .toast{
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+    background:var(--ink-navy); color:var(--text-light); padding:9px 16px;
+    border-radius:20px; font-size:12.5px; z-index:20; opacity:0;
+    transition:opacity .25s ease; pointer-events:none;
+  }
+  .toast.show{ opacity:1; }
+
+  @media (max-width:360px){
+    .balance-amount{ font-size:26px; }
+  }
+</style>
+</head>
+<body>
+<div class="book">
+  <div class="page">
+
+    <header class="title-row" style="display:none;"></header>
+
+    <div class="form-card" id="setupCard" style="display:none;">
+      <label class="field-label">Connect Google Sheet</label>
+      <input type="text" id="scriptUrlInput" placeholder="Paste your Apps Script Web App URL (ends in /exec)">
+      <div class="action-row" style="margin-top:8px;">
+        <button class="btn-action btn-got enabled" id="saveScriptUrlBtn" style="flex:none; padding:10px 16px;">Save & Connect</button>
+      </div>
+      <div class="entry-meta" style="margin-top:8px;">One person sets this up once — see chat for the 5-step setup. Your friend won't need to repeat it.</div>
+    </div>
+
+    <div id="mainUI" style="display:none;">
+      <div class="book-row">
+        <div class="menu-wrap" style="flex:1;">
+          <button class="btn-settings" id="bookSelectBtn" style="width:100%; display:flex; justify-content:space-between; align-items:center; font-family:'Roboto Slab',serif; font-weight:500; padding:8px 12px;">
+            <span id="bookSelectLabel">Loading…</span><span>▾</span>
+          </button>
+          <div class="menu-dropdown" id="bookSelectDropdown" style="display:none; left:0; right:auto; width:100%; max-height:220px; overflow-y:auto;"></div>
+        </div>
+        <div class="menu-wrap">
+          <button class="btn-settings" id="menuBtn">Menu ▾</button>
+          <div class="menu-dropdown" id="menuDropdown" style="display:none;">
+            <button class="menu-item" id="renameBookBtn">Rename</button>
+            <button class="menu-item" id="newBookBtn">New</button>
+            <button class="menu-item" id="settingsBtn">My Name</button>
+            <button class="menu-item danger" id="deleteBookBtn">Delete</button>
+            <button class="menu-item" id="historyBtn">History</button>
+            <button class="menu-item" id="reconnectBtn">Change Sheet</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="balance-card">
+        <div class="balance-label">Net Expenses</div>
+        <div class="balance-amount zero" id="balanceAmount">₹0</div>
+        <div class="mini-tally">
+          <div>Gave: <b id="totalGave">₹0</b></div>
+          <div>Got: <b id="totalGot">₹0</b></div>
+        </div>
+      </div>
+      <div class="subtitle" id="syncStatus" style="text-align:center; margin:-10px 0 14px;"></div>
+
+      <div class="form-card">
+        <div class="form-row">
+          <div>
+            <label class="field-label">Amount (₹)</label>
+            <input type="number" id="amountInput" placeholder="0" min="0" step="0.01" inputmode="decimal">
+          </div>
+          <div>
+            <label class="field-label">Date</label>
+            <input type="date" id="dateInput">
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label class="field-label">Payment Mode *</label>
+            <select id="paymentModeSelect">
+              <option value="">Select payment mode…</option>
+              <option value="SBI Credit Card">SBI Credit Card</option>
+              <option value="ICICI Credit Card">ICICI Credit Card</option>
+              <option value="Yes Bank">Yes Bank</option>
+              <option value="ICICI Bank">ICICI Bank</option>
+              <option value="SBI Bank">SBI Bank</option>
+              <option value="__other__">Other…</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row" id="otherPaymentRow" style="display:none;">
+          <div>
+            <label class="field-label">Specify payment mode</label>
+            <input type="text" id="otherPaymentInput" placeholder="e.g. HDFC UPI, Cash">
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label class="field-label">Note (optional)</label>
+            <input type="text" id="noteInput" placeholder="e.g. Auto fare, Lunch">
+          </div>
+        </div>
+        <div class="action-row">
+          <button class="btn-action btn-gave" id="btnGave">YOU GAVE</button>
+          <button class="btn-action btn-got" id="btnGot">YOU GOT</button>
+        </div>
+      </div>
+
+      <div class="section-label">
+        <span>Entries</span>
+        <button class="link-btn" id="exportBtn">Export CSV</button>
+      </div>
+
+      <div id="listContainer">
+        <div class="empty-state">Loading entries…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// window.storage only exists inside Claude's artifact viewer. When this file
+// is hosted and run standalone (e.g. as an installed Android app), fall back
+// to localStorage so saving/loading still works on-device.
+if(!window.storage){
+  window.storage = {
+    async get(key, shared){
+      const raw = localStorage.getItem('khata_'+key);
+      if(raw === null) throw new Error('key not found');
+      return {key, value: raw, shared: !!shared};
+    },
+    async set(key, value, shared){
+      localStorage.setItem('khata_'+key, value);
+      return {key, value, shared: !!shared};
+    },
+    async delete(key, shared){
+      localStorage.removeItem('khata_'+key);
+      return {key, deleted:true, shared: !!shared};
+    },
+    async list(prefix, shared){
+      const keys = Object.keys(localStorage)
+        .filter(k=>k.startsWith('khata_'+(prefix||'')))
+        .map(k=>k.replace(/^khata_/,''));
+      return {keys, prefix, shared: !!shared};
+    }
+  };
+}
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* offline shell unavailable, app still works online */ });
+  });
+}
+
+const state = {
+  entries: [],
+  books: [],
+  archivedBooks: [],
+  activeBook: null,
+  settings: { you: 'You', friend: 'Friend' },
+  myName: null,
+  loaded: false,
+  scriptUrl: null,
+  saving: false
+};
+let pollTimer = null;
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtMoney(n){
+  const v = Math.abs(n);
+  return '₹' + v.toLocaleString('en-IN', {minimumFractionDigits: v%1?2:0, maximumFractionDigits:2});
+}
+
+// ---- Date format helpers: input widgets use ISO (YYYY-MM-DD); the app
+// displays and stores dates as DD-MM-YYYY everywhere else (UI + sheet). ----
+function isoToDisplay(iso){
+  if(!iso || iso.indexOf('-')===-1) return iso;
+  const parts = iso.split('-');
+  if(parts[0].length===4){ // YYYY-MM-DD -> DD-MM-YYYY
+    return parts[2]+'-'+parts[1]+'-'+parts[0];
+  }
+  return iso; // already DD-MM-YYYY
+}
+function displayToIso(disp){
+  if(!disp || disp.indexOf('-')===-1) return disp;
+  const parts = disp.split('-');
+  if(parts[0].length===4) return disp; // already ISO
+  return parts[2]+'-'+parts[1]+'-'+parts[0]; // DD-MM-YYYY -> YYYY-MM-DD
+}
+function displayToDateObj(disp){
+  const iso = displayToIso(disp);
+  const d = new Date(iso+'T00:00:00');
+  return isNaN(d.getTime()) ? null : d;
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function uid(){ return 'e_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
+
+function setSyncStatus(text){
+  document.getElementById('syncStatus').textContent = text;
+}
+
+async function loadMyName(){
+  try{
+    const res = await window.storage.get('myName', false);
+    if(res && res.value) return res.value;
+  }catch(err){ /* not set yet */ }
+  return null;
+}
+async function saveMyName(name){
+  try{
+    await window.storage.set('myName', name, false);
+  }catch(err){
+    console.error('name save error', err);
+  }
+}
+function askForName(){
+  return new Promise(resolve=>{
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>What's your name?</h3>
+        <div class="entry-meta" style="margin-bottom:10px;">This is shown on every entry you add, so your friend knows it was you.</div>
+        <input type="text" id="myNameInput" placeholder="e.g. Ganesh">
+        <div class="modal-buttons">
+          <button class="btn-save" id="saveMyNameBtn" style="flex:1;">Continue</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    const input = backdrop.querySelector('#myNameInput');
+    input.focus();
+    const submit = async ()=>{
+      const name = input.value.trim();
+      if(!name) { showToast('Please enter your name'); return; }
+      await saveMyName(name);
+      state.myName = name;
+      backdrop.remove();
+      resolve(name);
+    };
+    backdrop.querySelector('#saveMyNameBtn').onclick = submit;
+    input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') submit(); });
+  });
+}
+async function ensureMyName(){
+  if(state.myName) return; // already known this session — never re-prompt
+  const existing = await loadMyName();
+  if(existing){ state.myName = existing; return; }
+  await askForName();
+}
+
+// If you deploy the Apps Script and want every device to skip the
+// "Connect Google Sheet" step entirely, paste your /exec URL below.
+// Leave it blank to keep the manual one-time connect step.
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLWssKlekzwQSDPpEdKDHZtHDGULUNeuSdBJaIydT4yZr9TPCGIv3CQs2AitRuMHvt/exec';
+
+async function loadConfig(){
+  try{
+    const res = await window.storage.get('config', true);
+    if(res && res.value){
+      const cfg = JSON.parse(res.value);
+      if(cfg.scriptUrl){ state.scriptUrl = cfg.scriptUrl; return; }
+    }
+  }catch(err){
+    // no config saved yet
+  }
+  state.scriptUrl = DEFAULT_SCRIPT_URL || null;
+}
+
+async function saveConfig(){
+  try{
+    await window.storage.set('config', JSON.stringify({scriptUrl: state.scriptUrl}), true);
+  }catch(err){
+    console.error('config save error', err);
+  }
+}
+
+async function loadBookPref(){
+  try{
+    const res = await window.storage.get('activeBook', false);
+    if(res && res.value) return res.value;
+  }catch(err){ /* not set yet */ }
+  return null;
+}
+async function saveBookPref(name){
+  try{
+    await window.storage.set('activeBook', name, false);
+  }catch(err){
+    console.error('book pref save error', err);
+  }
+}
+
+async function fetchFromSheet(bookName){
+  let url = state.scriptUrl;
+  if(bookName) url += (url.includes('?') ? '&' : '?') + 'book=' + encodeURIComponent(bookName);
+  const res = await fetch(url, {method:'GET'});
+  if(!res.ok) throw new Error('Fetch failed: '+res.status);
+  return res.json();
+}
+
+async function postToSheet(payload){
+  const res = await fetch(state.scriptUrl, {
+    method:'POST',
+    headers: {'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok) throw new Error('Save failed: '+res.status);
+  return res.json();
+}
+
+function applySheetResponse(data){
+  state.entries = (data.entries||[])
+    .map(e=>({
+      ...e,
+      amount: parseFloat(e.amount),
+      createdAt: parseInt(e.createdAt,10) || 0
+    }))
+    .filter(e=> e.id && !isNaN(e.amount) && (e.type==='gave' || e.type==='got'));
+  if(data.settings) state.settings = data.settings;
+  if(data.books) state.books = data.books;
+  if(data.archivedBooks) state.archivedBooks = data.archivedBooks;
+  if(data.activeBook) state.activeBook = data.activeBook;
+}
+
+async function loadAll(){
+  await ensureMyName();
+  await loadConfig();
+  if(!state.scriptUrl){
+    state.loaded = true;
+    render();
+    return;
+  }
+  setSyncStatus('Syncing…');
+  try{
+    const preferredBook = await loadBookPref();
+    const data = await fetchFromSheet(preferredBook);
+    applySheetResponse(data);
+    setSyncStatus('Synced ✓ — updates every 15s');
+  }catch(err){
+    console.error('load error', err);
+    setSyncStatus('Sync failed — check the Sheet URL / connection');
+  }
+  state.loaded = true;
+  render();
+  schedulePoll();
+}
+
+function schedulePoll(){
+  if(pollTimer) clearInterval(pollTimer);
+  if(!state.scriptUrl) return;
+  pollTimer = setInterval(async ()=>{
+    if(state.saving) return;
+    try{
+      const data = await fetchFromSheet(state.activeBook);
+      applySheetResponse(data);
+      setSyncStatus('Synced ✓ — updates every 15s');
+      render();
+    }catch(err){
+      setSyncStatus('Sync failed — will retry');
+    }
+  }, 15000);
+}
+
+function getPaymentMode(){
+  const sel = document.getElementById('paymentModeSelect').value;
+  if(!sel) return null;
+  if(sel === '__other__'){
+    const v = document.getElementById('otherPaymentInput').value.trim();
+    return v ? v : null;
+  }
+  return sel;
+}
+
+async function addEntry(type){
+  const amount = parseFloat(document.getElementById('amountInput').value);
+  const paymentMode = getPaymentMode();
+  if(!amount || amount<=0 || !paymentMode) return;
+  const isoDate = document.getElementById('dateInput').value || todayStr();
+  const date = isoToDisplay(isoDate);
+  const note = document.getElementById('noteInput').value.trim();
+  const entry = {
+    id: uid(),
+    amount, type, date, note, paymentMode,
+    addedBy: state.myName || 'Someone',
+    createdAt: Date.now()
+  };
+  // optimistic UI update
+  state.entries.push(entry);
+  document.getElementById('amountInput').value = '';
+  document.getElementById('noteInput').value = '';
+  updateButtons();
+  render();
+
+  state.saving = true;
+  setSyncStatus('Saving…');
+  try{
+    await postToSheet({action:'add', book: state.activeBook, ...entry});
+    setSyncStatus('Synced ✓ — updates every 15s');
+    showToast((type==='gave'?'Gave':'Got')+' '+fmtMoney(amount)+' saved');
+  }catch(err){
+    console.error('add error', err);
+    setSyncStatus('Save failed — will retry on refresh');
+    showToast('Could not save to Sheet — check connection');
+  }
+  state.saving = false;
+  // pull canonical state back from the sheet
+  try{
+    const data = await fetchFromSheet(state.activeBook);
+    applySheetResponse(data);
+    render();
+  }catch(err){}
+}
+
+async function deleteEntry(id){
+  const prev = state.entries;
+  state.entries = state.entries.filter(e=>e.id!==id);
+  render();
+  state.saving = true;
+  try{
+    await postToSheet({action:'delete', book: state.activeBook, id});
+  }catch(err){
+    console.error('delete error', err);
+    showToast('Could not delete — check connection');
+    state.entries = prev;
+    render();
+  }
+  state.saving = false;
+}
+
+function updateButtons(){
+  const val = parseFloat(document.getElementById('amountInput').value);
+  const paymentMode = getPaymentMode();
+  const enabled = val && val>0 && paymentMode;
+  document.getElementById('btnGave').classList.toggle('enabled', !!enabled);
+  document.getElementById('btnGot').classList.toggle('enabled', !!enabled);
+}
+
+function computeBalanceMap(){
+  const sorted = [...state.entries].sort((a,b)=>
+    (displayToIso(a.date)+'_'+String(a.createdAt)).localeCompare(displayToIso(b.date)+'_'+String(b.createdAt))
+  );
+  let bal = 0;
+  const map = {};
+  let totalGave=0, totalGot=0;
+  sorted.forEach(e=>{
+    if(e.type==='gave'){ bal += e.amount; totalGave += e.amount; }
+    else { bal -= e.amount; totalGot += e.amount; }
+    map[e.id] = bal;
+  });
+  return {map, finalBalance: bal, totalGave, totalGot};
+}
+
+function render(){
+  const setupCard = document.getElementById('setupCard');
+  const mainUI = document.getElementById('mainUI');
+  if(!state.scriptUrl){
+    setupCard.style.display = 'block';
+    mainUI.style.display = 'none';
+    setSyncStatus('');
+    return;
+  }
+  setupCard.style.display = 'none';
+  mainUI.style.display = 'block';
+  renderBookSelect();
+  renderBalance();
+  renderList();
+  updateButtons();
+}
+
+function renderBookSelect(){
+  document.getElementById('bookSelectLabel').textContent = state.activeBook || 'Select khatabook';
+  const dd = document.getElementById('bookSelectDropdown');
+  dd.innerHTML = '';
+  state.books.forEach(name=>{
+    const item = document.createElement('button');
+    item.className = 'menu-item';
+    item.textContent = name;
+    if(name === state.activeBook){
+      item.style.fontWeight = '700';
+      item.style.color = 'var(--ink-navy)';
+    }
+    item.onclick = async ()=>{
+      dd.style.display = 'none';
+      if(name === state.activeBook) return;
+      state.activeBook = name;
+      await saveBookPref(name);
+      setSyncStatus('Syncing…');
+      try{
+        const data = await fetchFromSheet(name);
+        applySheetResponse(data);
+        setSyncStatus('Synced ✓ — updates every 15s');
+      }catch(err){
+        setSyncStatus('Sync failed — check connection');
+      }
+      render();
+    };
+    dd.appendChild(item);
+  });
+}
+
+function renderBalance(){
+  const {finalBalance, totalGave, totalGot} = computeBalanceMap();
+  const amtEl = document.getElementById('balanceAmount');
+  const sign = finalBalance < -0.001 ? '−' : '';
+  amtEl.textContent = sign + fmtMoney(finalBalance);
+  if(finalBalance > 0.001){
+    amtEl.className = 'balance-amount positive';
+  } else if(finalBalance < -0.001){
+    amtEl.className = 'balance-amount negative';
+  } else {
+    amtEl.className = 'balance-amount zero';
+  }
+  document.getElementById('totalGave').textContent = fmtMoney(totalGave);
+  document.getElementById('totalGot').textContent = fmtMoney(totalGot);
+}
+
+function renderList(){
+  const container = document.getElementById('listContainer');
+  if(!state.entries.length){
+    container.innerHTML = '<div class="empty-state">No entries yet. Add your first one above.</div>';
+    return;
+  }
+  const {map} = computeBalanceMap();
+  const byDate = {};
+  state.entries.forEach(e=>{
+    (byDate[e.date] = byDate[e.date] || []).push(e);
+  });
+  const dates = Object.keys(byDate).sort((a,b)=> displayToIso(a).localeCompare(displayToIso(b))).reverse();
+  container.innerHTML = '';
+  dates.forEach(date=>{
+    const group = document.createElement('div');
+    group.className = 'day-group';
+    const dayEntries = byDate[date].sort((a,b)=>b.createdAt-a.createdAt);
+    dayEntries.forEach(e=>{
+      const row = document.createElement('div');
+      row.className = 'entry';
+      const who = e.addedBy || 'Someone';
+      row.innerHTML = `
+        <div class="entry-left">
+          <div class="entry-note">${e.note ? e.note : (e.type==='gave' ? 'You gave' : 'You got')}</div>
+          <div class="entry-meta">${date} • added by ${who}</div>
+          <div class="entry-tag">${e.paymentMode || '—'}</div>
+        </div>
+        <div class="entry-right">
+          <div class="entry-amount ${e.type}">${e.type==='gave'?'−':'+'} ${fmtMoney(e.amount)}</div>
+          <div class="entry-balance">bal ${fmtMoney(map[e.id])}</div>
+        </div>
+        <div class="entry-menu-wrap">
+          <button class="entry-menu-btn" data-id="${e.id}">Edit ▾</button>
+          <div class="entry-menu-dropdown" style="display:none;">
+            <button class="menu-item entry-edit-item" data-id="${e.id}">Edit</button>
+            <button class="menu-item danger entry-delete-item" data-id="${e.id}">Delete</button>
+          </div>
+        </div>
+      `;
+      const menuBtn = row.querySelector('.entry-menu-btn');
+      const dropdown = row.querySelector('.entry-menu-dropdown');
+      menuBtn.onclick = (ev)=>{
+        ev.stopPropagation();
+        const isOpen = dropdown.style.display !== 'none';
+        closeAllEntryMenus();
+        dropdown.style.display = isOpen ? 'none' : 'block';
+      };
+      row.querySelector('.entry-edit-item').onclick = ()=>{
+        closeAllEntryMenus();
+        openEditModal(e.id);
+      };
+      row.querySelector('.entry-delete-item').onclick = ()=>{
+        closeAllEntryMenus();
+        if(confirm('Delete this entry?')) deleteEntry(e.id);
+      };
+      group.appendChild(row);
+    });
+    container.appendChild(group);
+  });
+}
+
+function exportCSV(){
+  const {map} = computeBalanceMap();
+  const rows = [['Date','Type','Amount','Note','Payment Mode','Added By','Balance After']];
+  [...state.entries].sort((a,b)=>
+    (displayToIso(a.date)+'_'+String(a.createdAt)).localeCompare(displayToIso(b.date)+'_'+String(b.createdAt))
+  ).forEach(e=>{
+    rows.push([
+      e.date,
+      e.type==='gave' ? 'You Gave' : 'You Got',
+      e.amount,
+      (e.note||'').replace(/,/g,';'),
+      (e.paymentMode||'').replace(/,/g,';'),
+      e.addedBy || 'Someone',
+      map[e.id]
+    ]);
+  });
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'khata-'+(state.activeBook||'export')+'-'+todayStr()+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function openSettingsModal(){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>My Name</h3>
+      <div class="entry-meta" style="margin-bottom:10px;">Shown on every entry you add.</div>
+      <input type="text" id="myNameEditInput" value="${state.myName || ''}">
+      <div class="modal-buttons">
+        <button class="btn-cancel" id="cancelMyName">Cancel</button>
+        <button class="btn-save" id="saveMyNameEdit">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('#cancelMyName').onclick = ()=> backdrop.remove();
+  backdrop.querySelector('#saveMyNameEdit').onclick = async ()=>{
+    const name = backdrop.querySelector('#myNameEditInput').value.trim();
+    if(!name){ showToast('Please enter your name'); return; }
+    state.myName = name;
+    await saveMyName(name);
+    showToast('Name updated');
+    backdrop.remove();
+  };
+}
+
+const PAYMENT_MODES = ['SBI Credit Card','ICICI Credit Card','Yes Bank','ICICI Bank','SBI Bank'];
+
+function openEditModal(id){
+  const entry = state.entries.find(e=>e.id===id);
+  if(!entry) return;
+  const isKnownMode = PAYMENT_MODES.includes(entry.paymentMode);
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>Edit Entry</h3>
+      <div class="who-toggle" id="editTypeToggle" style="margin-top:8px;">
+        <div class="who-pill ${entry.type==='gave'?'active':''}" data-type="gave" style="${entry.type==='gave'?'background:var(--margin-red);border-color:var(--margin-red);':''}">You Gave</div>
+        <div class="who-pill ${entry.type==='got'?'active':''}" data-type="got" style="${entry.type==='got'?'background:var(--credit-green);border-color:var(--credit-green);':''}">You Got</div>
+      </div>
+      <label class="field-label">Amount (₹)</label>
+      <input type="number" id="editAmount" value="${entry.amount}" min="0" step="0.01">
+      <label class="field-label">Date</label>
+      <input type="date" id="editDate" value="${displayToIso(entry.date)}">
+      <label class="field-label">Payment Mode</label>
+      <select id="editPaymentMode">
+        <option value="">Select payment mode…</option>
+        ${PAYMENT_MODES.map(m=>`<option value="${m}" ${entry.paymentMode===m?'selected':''}>${m}</option>`).join('')}
+        <option value="__other__" ${!isKnownMode && entry.paymentMode ? 'selected':''}>Other…</option>
+      </select>
+      <div id="editOtherRow" style="display:${!isKnownMode && entry.paymentMode ? 'block':'none'};">
+        <label class="field-label">Specify payment mode</label>
+        <input type="text" id="editOtherPayment" value="${!isKnownMode ? (entry.paymentMode||'') : ''}">
+      </div>
+      <label class="field-label">Note</label>
+      <input type="text" id="editNote" value="${entry.note||''}">
+      <label class="field-label">Added by</label>
+      <input type="text" id="editAddedBy" value="${entry.addedBy||''}">
+      <div class="modal-buttons">
+        <button class="btn-cancel" id="cancelEdit">Cancel</button>
+        <button class="btn-save" id="saveEdit">Save Changes</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  let editType = entry.type;
+  backdrop.querySelectorAll('#editTypeToggle .who-pill').forEach(p=>{
+    p.onclick = ()=>{
+      editType = p.dataset.type;
+      backdrop.querySelectorAll('#editTypeToggle .who-pill').forEach(x=>{ x.classList.remove('active'); x.style.background=''; x.style.borderColor=''; });
+      p.classList.add('active');
+      p.style.background = editType==='gave' ? 'var(--margin-red)' : 'var(--credit-green)';
+      p.style.borderColor = editType==='gave' ? 'var(--margin-red)' : 'var(--credit-green)';
+    };
+  });
+  backdrop.querySelector('#editPaymentMode').addEventListener('change', (ev)=>{
+    backdrop.querySelector('#editOtherRow').style.display = ev.target.value==='__other__' ? 'block' : 'none';
+  });
+  backdrop.querySelector('#cancelEdit').onclick = ()=> backdrop.remove();
+  backdrop.querySelector('#saveEdit').onclick = async ()=>{
+    const amount = parseFloat(backdrop.querySelector('#editAmount').value);
+    const isoDate = backdrop.querySelector('#editDate').value;
+    const date = isoToDisplay(isoDate);
+    const note = backdrop.querySelector('#editNote').value.trim();
+    const addedBy = backdrop.querySelector('#editAddedBy').value.trim() || entry.addedBy;
+    let paymentMode = backdrop.querySelector('#editPaymentMode').value;
+    if(paymentMode==='__other__') paymentMode = backdrop.querySelector('#editOtherPayment').value.trim();
+    if(!amount || amount<=0 || !isoDate || !paymentMode){
+      showToast('Amount, date and payment mode are required');
+      return;
+    }
+    const updated = {...entry, amount, date, note, paymentMode, type: editType, addedBy};
+    const idx = state.entries.findIndex(x=>x.id===id);
+    if(idx>-1) state.entries[idx] = updated;
+    render();
+    backdrop.remove();
+    state.saving = true;
+    setSyncStatus('Saving…');
+    try{
+      await postToSheet({action:'update', book: state.activeBook, ...updated});
+      setSyncStatus('Synced ✓ — updates every 15s');
+      showToast('Entry updated');
+    }catch(err){
+      showToast('Could not save changes — check connection');
+    }
+    state.saving = false;
+    try{
+      const data = await fetchFromSheet(state.activeBook);
+      applySheetResponse(data);
+      render();
+    }catch(err){}
+  };
+}
+
+function openHistoryModal(){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  const listHtml = state.archivedBooks.length
+    ? state.archivedBooks.map(name=>`
+        <div class="entry" style="padding:8px 0;">
+          <div class="entry-left"><div class="entry-note">${name}</div></div>
+          <button class="btn-settings restore-btn" data-name="${name}">Restore</button>
+        </div>`).join('')
+    : '<div class="empty-state" style="padding:14px 0;">No deleted khatabooks.</div>';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>History — Deleted Khatabooks</h3>
+      <div>${listHtml}</div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" id="closeHistory">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('#closeHistory').onclick = ()=> backdrop.remove();
+  backdrop.querySelectorAll('.restore-btn').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const name = btn.dataset.name;
+      try{
+        const result = await postToSheet({action:'restoreBook', name});
+        if(!result.ok) throw new Error(result.error || 'Could not restore');
+        state.activeBook = result.book;
+        await saveBookPref(result.book);
+        const data = await fetchFromSheet(result.book);
+        applySheetResponse(data);
+        render();
+        showToast('"'+name+'" restored');
+        backdrop.remove();
+      }catch(err){
+        showToast(err.message || 'Could not restore khatabook');
+      }
+    };
+  });
+}
+
+document.getElementById('dateInput').value = todayStr();
+document.getElementById('amountInput').addEventListener('input', updateButtons);
+document.getElementById('paymentModeSelect').addEventListener('change', ()=>{
+  const isOther = document.getElementById('paymentModeSelect').value === '__other__';
+  document.getElementById('otherPaymentRow').style.display = isOther ? 'flex' : 'none';
+  updateButtons();
+});
+document.getElementById('otherPaymentInput').addEventListener('input', updateButtons);
+document.getElementById('btnGave').addEventListener('click', ()=>addEntry('gave'));
+document.getElementById('btnGot').addEventListener('click', ()=>addEntry('got'));
+document.getElementById('exportBtn').addEventListener('click', exportCSV);
+document.getElementById('settingsBtn').addEventListener('click', openSettingsModal);
+document.getElementById('reconnectBtn').addEventListener('click', ()=>{
+  state.scriptUrl = null;
+  render();
+});
+document.getElementById('saveScriptUrlBtn').addEventListener('click', async ()=>{
+  const url = document.getElementById('scriptUrlInput').value.trim();
+  if(!url || !url.includes('/exec')){
+    showToast('Paste the full Apps Script URL ending in /exec');
+    return;
+  }
+  state.scriptUrl = url;
+  await saveConfig();
+  loadAll();
+});
+
+document.getElementById('bookSelectBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  const dd = document.getElementById('bookSelectDropdown');
+  const isOpen = dd.style.display !== 'none';
+  document.getElementById('menuDropdown').style.display = 'none';
+  closeAllEntryMenus();
+  dd.style.display = isOpen ? 'none' : 'block';
+});
+
+document.getElementById('newBookBtn').addEventListener('click', ()=>{
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>New Khatabook</h3>
+      <label class="field-label">Name (e.g. vendor or category)</label>
+      <input type="text" id="newBookName" placeholder="e.g. ABC Suppliers">
+      <div class="modal-buttons">
+        <button class="btn-cancel" id="cancelNewBook">Cancel</button>
+        <button class="btn-save" id="confirmNewBook">Create</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('#cancelNewBook').onclick = ()=> backdrop.remove();
+  backdrop.querySelector('#confirmNewBook').onclick = async ()=>{
+    const name = backdrop.querySelector('#newBookName').value.trim();
+    if(!name){ showToast('Enter a name for the khatabook'); return; }
+    try{
+      const result = await postToSheet({action:'createBook', name});
+      if(!result.ok) throw new Error(result.error || 'Could not create khatabook');
+      state.activeBook = result.book;
+      await saveBookPref(result.book);
+      const data = await fetchFromSheet(result.book);
+      applySheetResponse(data);
+      render();
+      showToast('Khatabook "'+result.book+'" created');
+      backdrop.remove();
+    }catch(err){
+      showToast(err.message || 'Could not create khatabook');
+    }
+  };
+});
+
+document.getElementById('renameBookBtn').addEventListener('click', ()=>{
+  if(!state.activeBook) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>Rename Khatabook</h3>
+      <label class="field-label">New name</label>
+      <input type="text" id="renameBookInput" value="${state.activeBook}">
+      <div class="modal-buttons">
+        <button class="btn-cancel" id="cancelRenameBook">Cancel</button>
+        <button class="btn-save" id="confirmRenameBook">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('#cancelRenameBook').onclick = ()=> backdrop.remove();
+  backdrop.querySelector('#confirmRenameBook').onclick = async ()=>{
+    const newName = backdrop.querySelector('#renameBookInput').value.trim();
+    if(!newName){ showToast('Enter a name'); return; }
+    try{
+      const result = await postToSheet({action:'renameBook', oldName: state.activeBook, newName});
+      if(!result.ok) throw new Error(result.error || 'Could not rename khatabook');
+      state.activeBook = result.book;
+      await saveBookPref(result.book);
+      const data = await fetchFromSheet(result.book);
+      applySheetResponse(data);
+      render();
+      showToast('Renamed to "'+result.book+'"');
+      backdrop.remove();
+    }catch(err){
+      showToast(err.message || 'Could not rename khatabook');
+    }
+  };
+});
+
+document.getElementById('historyBtn').addEventListener('click', openHistoryModal);
+
+document.getElementById('menuBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  const dd = document.getElementById('menuDropdown');
+  const isOpen = dd.style.display !== 'none';
+  document.getElementById('bookSelectDropdown').style.display = 'none';
+  closeAllEntryMenus();
+  dd.style.display = isOpen ? 'none' : 'block';
+});
+function closeAllEntryMenus(){
+  document.querySelectorAll('.entry-menu-dropdown').forEach(d=> d.style.display = 'none');
+}
+
+document.addEventListener('click', (e)=>{
+  const dd = document.getElementById('menuDropdown');
+  const wrap = document.getElementById('menuBtn') ? document.getElementById('menuBtn').closest('.menu-wrap') : null;
+  if(dd && dd.style.display !== 'none' && wrap && !wrap.contains(e.target)){
+    dd.style.display = 'none';
+  }
+  const bookDd = document.getElementById('bookSelectDropdown');
+  const bookBtn = document.getElementById('bookSelectBtn');
+  if(bookDd && bookDd.style.display !== 'none' && !bookDd.contains(e.target) && e.target !== bookBtn && !bookBtn.contains(e.target)){
+    bookDd.style.display = 'none';
+  }
+  if(!e.target.closest('.entry-menu-wrap')){
+    closeAllEntryMenus();
+  }
+});
+document.querySelectorAll('.menu-item').forEach(item=>{
+  item.addEventListener('click', ()=>{
+    document.getElementById('menuDropdown').style.display = 'none';
+  });
+});
+
+document.getElementById('deleteBookBtn').addEventListener('click', async ()=>{
+  if(!state.activeBook) return;
+  if(!confirm('Move "'+state.activeBook+'" to History? You can restore it anytime from History.')) return;
+  const deletedName = state.activeBook;
+  try{
+    const result = await postToSheet({action:'deleteBook', name: deletedName});
+    if(!result.ok) throw new Error(result.error || 'Could not delete khatabook');
+    const data = await fetchFromSheet(); // let server pick a new default book
+    applySheetResponse(data);
+    await saveBookPref(state.activeBook);
+    render();
+    showToast('"'+deletedName+'" moved to History');
+  }catch(err){
+    showToast(err.message || 'Could not delete khatabook');
+  }
+});
+
+loadAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "Our Khata",
+  "short_name": "Khata",
+  "description": "Shared expense ledger synced to Google Sheets",
+  "start_url": "./khata.html",
+  "id": "./khata.html",
+  "display": "standalone",
+  "background_color": "#D6ECFB",
+  "theme_color": "#1E5A8C",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
