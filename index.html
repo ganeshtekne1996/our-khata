@@ -692,7 +692,7 @@ async function loadAll(){
     const onboarded = await onboardUser();
     state.scriptUrl = onboarded.scriptUrl || null;
     if(!onboarded.configured || !state.scriptUrl || !onboarded.book){
-      document.getElementById('setupMessage').textContent = 'Your account is registered. Add bookName and scriptUrl to userOnBoard, then reload.';
+      document.getElementById('setupMessage').textContent = 'Your account is registered, but the onboarding service has not returned bookName and scriptUrl. Redeploy the updated userOnBoard script, then reload.';
       state.loaded = true;
       render();
       return;
