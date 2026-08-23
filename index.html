@@ -464,6 +464,7 @@ const state = {
   credential: null,
   loaded: false,
   scriptUrl: null,
+  bookNameLink: null,
   saving: false
 };
 let pollTimer = null;
@@ -690,14 +691,19 @@ async function loadAll(){
   setSyncStatus('Syncing…');
   try{
     const onboarded = await onboardUser();
-    state.scriptUrl = onboarded.scriptUrl || null;
-    if(!onboarded.configured || !state.scriptUrl || !onboarded.book){
+    const assignedBook = String(onboarded.book || '').trim();
+    const assignedBookLink = String(onboarded.bookNameLink || '').trim();
+    const assignedScriptUrl = String(onboarded.scriptUrl || '').trim();
+    const isConfigured = Boolean(onboarded.configured && assignedBook && assignedBookLink && assignedScriptUrl);
+    state.scriptUrl = isConfigured ? assignedScriptUrl : null;
+    state.bookNameLink = isConfigured ? assignedBookLink : null;
+    if(!isConfigured){
       document.getElementById('setupMessage').textContent = 'Your account is registered, but the onboarding service has not returned bookName and scriptUrl. Redeploy the updated userOnBoard script, then reload.';
       state.loaded = true;
       render();
       return;
     }
-    state.activeBook = onboarded.book;
+    state.activeBook = assignedBook;
     state.books = onboarded.books || [state.activeBook];
     await saveBookPref(state.activeBook);
     const sheetData = await fetchFromSheet(state.activeBook);
