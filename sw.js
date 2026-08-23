@@ -1,5 +1,5 @@
 const CACHE_NAME = 'khata-cache-v1';
-const APP_SHELL = ['khata.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+const APP_SHELL = ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
