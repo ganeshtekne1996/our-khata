@@ -327,12 +327,8 @@
     </div>
 
     <div class="form-card" id="setupCard" style="display:none;">
-      <label class="field-label">Connect Google Sheet</label>
-      <input type="text" id="scriptUrlInput" placeholder="Paste your Apps Script Web App URL (ends in /exec)">
-      <div class="action-row" style="margin-top:8px;">
-        <button class="btn-action btn-got enabled" id="saveScriptUrlBtn" style="flex:none; padding:10px 16px;">Save & Connect</button>
-      </div>
-      <div class="entry-meta" style="margin-top:8px;">One person sets this up once — see chat for the 5-step setup. Your friend won't need to repeat it.</div>
+      <label class="field-label">Account setup pending</label>
+      <div class="entry-meta" id="setupMessage" style="margin-top:8px;">Your account is registered. Access will be enabled after your book is assigned.</div>
     </div>
 
     <div id="mainUI" style="display:none;">
@@ -620,32 +616,7 @@ async function ensureMyName(){
   await askForName();
 }
 
-// If you deploy the Apps Script and want every device to skip the
-// "Connect Google Sheet" step entirely, paste your /exec URL below.
-// Leave it blank to keep the manual one-time connect step.
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLWssKlekzwQSDPpEdKDHZtHDGULUNeuSdBJaIydT4yZr9TPCGIv3CQs2AitRuMHvt/exec';
 const DEFAULT_USER_ONBOARD_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1h7TDiHXp3Dp7NXlo09sv777BbtnfJXw6P6-Vckxvv1R4PA25E1Zrv-F_-63gQz8x/exec';
-
-async function loadConfig(){
-  try{
-    const res = await window.storage.get('config', true);
-    if(res && res.value){
-      const cfg = JSON.parse(res.value);
-      if(cfg.scriptUrl){ state.scriptUrl = cfg.scriptUrl; return; }
-    }
-  }catch(err){
-    // no config saved yet
-  }
-  state.scriptUrl = DEFAULT_SCRIPT_URL || null;
-}
-
-async function saveConfig(){
-  try{
-    await window.storage.set('config', JSON.stringify({scriptUrl: state.scriptUrl}), true);
-  }catch(err){
-    console.error('config save error', err);
-  }
-}
 
 async function loadBookPref(){
   try{
@@ -716,15 +687,16 @@ function applySheetResponse(data){
 async function loadAll(){
   if(!state.email || !state.credential){ render(); return; }
   await ensureMyName();
-  await loadConfig();
-  if(!state.scriptUrl){
-    state.loaded = true;
-    render();
-    return;
-  }
   setSyncStatus('Syncing…');
   try{
     const onboarded = await onboardUser();
+    state.scriptUrl = onboarded.scriptUrl || null;
+    if(!onboarded.configured || !state.scriptUrl || !onboarded.book){
+      document.getElementById('setupMessage').textContent = 'Your account is registered. Add bookName and scriptUrl to userOnBoard, then reload.';
+      state.loaded = true;
+      render();
+      return;
+    }
     state.activeBook = onboarded.book;
     state.books = onboarded.books || [state.activeBook];
     await saveBookPref(state.activeBook);
@@ -1179,17 +1151,6 @@ document.getElementById('reconnectBtn').addEventListener('click', ()=>{
   render();
 });
 document.getElementById('logoutBtn').addEventListener('click', logOff);
-document.getElementById('saveScriptUrlBtn').addEventListener('click', async ()=>{
-  const url = document.getElementById('scriptUrlInput').value.trim();
-  if(!url || !url.includes('/exec')){
-    showToast('Paste the full Apps Script URL ending in /exec');
-    return;
-  }
-  state.scriptUrl = url;
-  await saveConfig();
-  loadAll();
-});
-
 document.getElementById('bookSelectBtn').addEventListener('click', (e)=>{
   e.stopPropagation();
   const dd = document.getElementById('bookSelectDropdown');
