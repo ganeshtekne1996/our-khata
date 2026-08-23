@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --ink-navy:#1E5A8C;
@@ -305,6 +306,8 @@
     transition:opacity .25s ease; pointer-events:none;
   }
   .toast.show{ opacity:1; }
+  .account-card{ text-align:center; }
+  .account-email{ color:var(--text-muted); font-size:12px; margin-top:8px; }
 
   @media (max-width:360px){
     .balance-amount{ font-size:26px; }
@@ -316,6 +319,12 @@
   <div class="page">
 
     <header class="title-row" style="display:none;"></header>
+
+    <div class="form-card account-card" id="authCard" style="display:none;">
+      <label class="field-label">Sign in to Our Khata</label>
+      <div id="googleSignInButton" style="display:flex; justify-content:center; margin-top:12px;"></div>
+      <div class="entry-meta" id="authMessage" style="margin-top:10px;">Only Gmail accounts are supported.</div>
+    </div>
 
     <div class="form-card" id="setupCard" style="display:none;">
       <label class="field-label">Connect Google Sheet</label>
@@ -343,6 +352,7 @@
             <button class="menu-item danger" id="deleteBookBtn">Delete</button>
             <button class="menu-item" id="historyBtn">History</button>
             <button class="menu-item" id="reconnectBtn">Change Sheet</button>
+            <button class="menu-item danger" id="logoutBtn">Log off</button>
           </div>
         </div>
       </div>
@@ -454,6 +464,8 @@ const state = {
   activeBook: null,
   settings: { you: 'You', friend: 'Friend' },
   myName: null,
+  email: null,
+  credential: null,
   loaded: false,
   scriptUrl: null,
   saving: false
@@ -498,20 +510,76 @@ function showToast(msg){
 }
 function uid(){ return 'e_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
 
+const GOOGLE_CLIENT_ID = 'REPLACE_WITH_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
+function accountStorageKey(key){
+  return state.email ? key+'_'+state.email.toLowerCase() : key;
+}
+function decodeJwtPayload(token){
+  try{
+    const part = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(atob(part.padEnd(part.length + (4-part.length%4)%4, '=')));
+  }catch(err){ return null; }
+}
+function setAuthMessage(text){ document.getElementById('authMessage').textContent = text; }
+function signInWithGoogle(response){
+  const profile = decodeJwtPayload(response.credential);
+  if(!profile || !profile.email || !profile.email.toLowerCase().endsWith('@gmail.com')){
+    setAuthMessage('Only @gmail.com accounts can use this app.');
+    return;
+  }
+  state.email = profile.email.toLowerCase();
+  state.credential = response.credential;
+  state.myName = profile.name || null;
+  sessionStorage.setItem('khata_google_credential', response.credential);
+  sessionStorage.setItem('khata_google_email', state.email);
+  loadAll();
+}
+function initializeGoogleSignIn(){
+  if(!window.google || !window.google.accounts || GOOGLE_CLIENT_ID.startsWith('REPLACE_')){
+    setAuthMessage('Set GOOGLE_CLIENT_ID in index.html before enabling sign-in.');
+    return;
+  }
+  google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID, callback:signInWithGoogle, auto_select:false});
+  google.accounts.id.renderButton(document.getElementById('googleSignInButton'), {theme:'outline', size:'large', text:'signin_with', shape:'rectangular'});
+}
+function restoreGoogleSession(){
+  const credential = sessionStorage.getItem('khata_google_credential');
+  const email = sessionStorage.getItem('khata_google_email');
+  if(credential && email){
+    const profile = decodeJwtPayload(credential);
+    if(profile && profile.email && profile.email.toLowerCase() === email){
+      state.email = email;
+      state.credential = credential;
+      state.myName = profile.name || null;
+      return true;
+    }
+  }
+  return false;
+}
+function logOff(){
+  if(window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
+  sessionStorage.removeItem('khata_google_credential');
+  sessionStorage.removeItem('khata_google_email');
+  if(pollTimer) clearInterval(pollTimer);
+  state.email = null; state.credential = null; state.myName = null;
+  state.entries = []; state.books = []; state.archivedBooks = []; state.activeBook = null; state.loaded = false;
+  render();
+}
+
 function setSyncStatus(text){
   document.getElementById('syncStatus').textContent = text;
 }
 
 async function loadMyName(){
   try{
-    const res = await window.storage.get('myName', false);
+    const res = await window.storage.get(accountStorageKey('myName'), false);
     if(res && res.value) return res.value;
   }catch(err){ /* not set yet */ }
   return null;
 }
 async function saveMyName(name){
   try{
-    await window.storage.set('myName', name, false);
+    await window.storage.set(accountStorageKey('myName'), name, false);
   }catch(err){
     console.error('name save error', err);
   }
@@ -556,6 +624,7 @@ async function ensureMyName(){
 // "Connect Google Sheet" step entirely, paste your /exec URL below.
 // Leave it blank to keep the manual one-time connect step.
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLWssKlekzwQSDPpEdKDHZtHDGULUNeuSdBJaIydT4yZr9TPCGIv3CQs2AitRuMHvt/exec';
+const DEFAULT_USER_ONBOARD_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1h7TDiHXp3Dp7NXlo09sv777BbtnfJXw6P6-Vckxvv1R4PA25E1Zrv-F_-63gQz8x/exec';
 
 async function loadConfig(){
   try{
@@ -580,14 +649,14 @@ async function saveConfig(){
 
 async function loadBookPref(){
   try{
-    const res = await window.storage.get('activeBook', false);
+    const res = await window.storage.get(accountStorageKey('activeBook'), false);
     if(res && res.value) return res.value;
   }catch(err){ /* not set yet */ }
   return null;
 }
 async function saveBookPref(name){
   try{
-    await window.storage.set('activeBook', name, false);
+    await window.storage.set(accountStorageKey('activeBook'), name, false);
   }catch(err){
     console.error('book pref save error', err);
   }
@@ -596,12 +665,14 @@ async function saveBookPref(name){
 async function fetchFromSheet(bookName){
   let url = state.scriptUrl;
   if(bookName) url += (url.includes('?') ? '&' : '?') + 'book=' + encodeURIComponent(bookName);
+  url += (url.includes('?') ? '&' : '?') + 'credential=' + encodeURIComponent(state.credential || '');
   const res = await fetch(url, {method:'GET'});
   if(!res.ok) throw new Error('Fetch failed: '+res.status);
   return res.json();
 }
 
 async function postToSheet(payload){
+  payload = {...payload, credential:state.credential};
   const res = await fetch(state.scriptUrl, {
     method:'POST',
     headers: {'Content-Type':'text/plain;charset=utf-8'},
@@ -609,6 +680,23 @@ async function postToSheet(payload){
   });
   if(!res.ok) throw new Error('Save failed: '+res.status);
   return res.json();
+}
+
+async function onboardUser(){
+  const res = await fetch(DEFAULT_USER_ONBOARD_SCRIPT_URL, {
+    method:'POST',
+    headers: {'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({
+      action:'onboard',
+      credential:state.credential,
+      email:state.email,
+      name:state.myName
+    })
+  });
+  if(!res.ok) throw new Error('Onboarding failed: '+res.status);
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || 'Could not complete onboarding');
+  return data;
 }
 
 function applySheetResponse(data){
@@ -626,6 +714,7 @@ function applySheetResponse(data){
 }
 
 async function loadAll(){
+  if(!state.email || !state.credential){ render(); return; }
   await ensureMyName();
   await loadConfig();
   if(!state.scriptUrl){
@@ -635,9 +724,12 @@ async function loadAll(){
   }
   setSyncStatus('Syncing…');
   try{
-    const preferredBook = await loadBookPref();
-    const data = await fetchFromSheet(preferredBook);
-    applySheetResponse(data);
+    const onboarded = await onboardUser();
+    state.activeBook = onboarded.book;
+    state.books = onboarded.books || [state.activeBook];
+    await saveBookPref(state.activeBook);
+    const sheetData = await fetchFromSheet(state.activeBook);
+    applySheetResponse(sheetData);
     setSyncStatus('Synced ✓ — updates every 15s');
   }catch(err){
     console.error('load error', err);
@@ -754,8 +846,17 @@ function computeBalanceMap(){
 }
 
 function render(){
+  const authCard = document.getElementById('authCard');
   const setupCard = document.getElementById('setupCard');
   const mainUI = document.getElementById('mainUI');
+  if(!state.email || !state.credential){
+    authCard.style.display = 'block';
+    setupCard.style.display = 'none';
+    mainUI.style.display = 'none';
+    setSyncStatus('');
+    return;
+  }
+  authCard.style.display = 'none';
   if(!state.scriptUrl){
     setupCard.style.display = 'block';
     mainUI.style.display = 'none';
@@ -1077,6 +1178,7 @@ document.getElementById('reconnectBtn').addEventListener('click', ()=>{
   state.scriptUrl = null;
   render();
 });
+document.getElementById('logoutBtn').addEventListener('click', logOff);
 document.getElementById('saveScriptUrlBtn').addEventListener('click', async ()=>{
   const url = document.getElementById('scriptUrlInput').value.trim();
   if(!url || !url.includes('/exec')){
@@ -1220,7 +1322,14 @@ document.getElementById('deleteBookBtn').addEventListener('click', async ()=>{
   }
 });
 
-loadAll();
+restoreGoogleSession();
+render();
+if(window.google && window.google.accounts){
+  initializeGoogleSignIn();
+}else{
+  window.addEventListener('load', initializeGoogleSignIn, {once:true});
+}
+if(state.email && state.credential) loadAll();
 </script>
 </body>
 </html>
