@@ -680,9 +680,7 @@ function applySheetResponse(data){
     }))
     .filter(e=> e.id && !isNaN(e.amount) && (e.type==='gave' || e.type==='got'));
   if(data.settings) state.settings = data.settings;
-  if(data.books) state.books = data.books;
   if(data.archivedBooks) state.archivedBooks = data.archivedBooks;
-  if(data.activeBook) state.activeBook = data.activeBook;
 }
 
 async function loadAll(){
@@ -704,10 +702,12 @@ async function loadAll(){
       return;
     }
     state.activeBook = assignedBook;
-    state.books = onboarded.books || [state.activeBook];
+    state.books = [assignedBook];
     await saveBookPref(state.activeBook);
     const sheetData = await fetchFromSheet(state.activeBook);
     applySheetResponse(sheetData);
+    state.activeBook = assignedBook;
+    state.books = [assignedBook];
     setSyncStatus('Synced ✓ — updates every 15s');
   }catch(err){
     console.error('load error', err);
@@ -726,6 +726,8 @@ function schedulePoll(){
     try{
       const data = await fetchFromSheet(state.activeBook);
       applySheetResponse(data);
+      state.activeBook = state.books[0] || state.activeBook;
+      state.books = [state.activeBook];
       setSyncStatus('Synced ✓ — updates every 15s');
       render();
     }catch(err){
@@ -850,10 +852,10 @@ function render(){
 }
 
 function renderBookSelect(){
-  document.getElementById('bookSelectLabel').textContent = state.activeBook || 'Select khatabook';
+  document.getElementById('bookSelectLabel').textContent = state.activeBook || 'Assigned khatabook';
   const dd = document.getElementById('bookSelectDropdown');
   dd.innerHTML = '';
-  state.books.forEach(name=>{
+  state.books.slice(0, 1).forEach(name=>{
     const item = document.createElement('button');
     item.className = 'menu-item';
     item.textContent = name;
