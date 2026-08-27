@@ -464,6 +464,7 @@ const state = {
   credential: null,
   loaded: false,
   scriptUrl: null,
+  spreadsheetId: null,
   saving: false
 };
 let pollTimer = null;
@@ -559,6 +560,7 @@ function logOff(){
   if(pollTimer) clearInterval(pollTimer);
   state.email = null; state.credential = null; state.myName = null;
   state.entries = []; state.books = []; state.archivedBooks = []; state.activeBook = null; state.loaded = false;
+  state.scriptUrl = null; state.spreadsheetId = null;
   render();
 }
 
@@ -637,13 +639,17 @@ async function fetchFromSheet(workbookName){
   let url = state.scriptUrl;
   if(workbookName) url += (url.includes('?') ? '&' : '?') + 'book=' + encodeURIComponent(workbookName);
   url += (url.includes('?') ? '&' : '?') + 'credential=' + encodeURIComponent(state.credential || '');
+  // Pin the request to the exact spreadsheet assigned during onboarding,
+  // so a misconfigured/copied entries script can't silently write to the
+  // wrong workbook.
+  if(state.spreadsheetId) url += '&spreadsheetId=' + encodeURIComponent(state.spreadsheetId);
   const res = await fetch(url, {method:'GET'});
   if(!res.ok) throw new Error('Fetch failed: '+res.status);
   return res.json();
 }
 
 async function postToSheet(payload){
-  payload = {...payload, credential:state.credential};
+  payload = {...payload, credential:state.credential, spreadsheetId: state.spreadsheetId || undefined};
   const res = await fetch(state.scriptUrl, {
     method:'POST',
     headers: {'Content-Type':'text/plain;charset=utf-8'},
@@ -692,6 +698,7 @@ async function loadAll(){
     const assignedScriptUrl = String(onboarded.scriptUrl || '').trim();
     const isConfigured = Boolean(onboarded.configured && assignedBook && assignedScriptUrl);
     state.scriptUrl = isConfigured ? assignedScriptUrl : null;
+    state.spreadsheetId = String(onboarded.spreadsheetId || '').trim() || null;
     if(!isConfigured){
       document.getElementById('setupMessage').textContent = 'Your account is registered, but the onboarding service has not returned workbookName and scriptUrl. Redeploy the updated userOnBoard script, then reload.';
       state.loaded = true;
