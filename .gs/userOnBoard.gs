@@ -95,6 +95,10 @@ function onboardUser_(credential, displayName) {
     user = findUserOnBoard_(profile.email);
   } else {
     sheet.getRange(user.row, columns.name + 1).setValue(String(displayName || profile.name));
+    if (!user.workbookName) {
+      user.workbookName = workbookNameForEmail_(profile.email);
+      sheet.getRange(user.row, columns.workbookname + 1).setValue(user.workbookName);
+    }
   }
   return { profile: profile, user: user };
 }
@@ -176,5 +180,6 @@ function doPost(e) {
 }
 
 function doGet() {
+  setupUserOnBoardSheet_();
   return json_({ok: true, service: 'userOnBoard'});
 }
