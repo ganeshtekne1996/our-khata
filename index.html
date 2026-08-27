@@ -464,7 +464,7 @@ const state = {
   credential: null,
   loaded: false,
   scriptUrl: null,
-  bookNameLink: null,
+  workbookNameLink: null,
   saving: false
 };
 let pollTimer = null;
@@ -634,9 +634,9 @@ async function saveBookPref(name){
   }
 }
 
-async function fetchFromSheet(bookName){
+async function fetchFromSheet(workbookName){
   let url = state.scriptUrl;
-  if(bookName) url += (url.includes('?') ? '&' : '?') + 'book=' + encodeURIComponent(bookName);
+  if(workbookName) url += (url.includes('?') ? '&' : '?') + 'book=' + encodeURIComponent(workbookName);
   url += (url.includes('?') ? '&' : '?') + 'credential=' + encodeURIComponent(state.credential || '');
   const res = await fetch(url, {method:'GET'});
   if(!res.ok) throw new Error('Fetch failed: '+res.status);
@@ -690,13 +690,13 @@ async function loadAll(){
   try{
     const onboarded = await onboardUser();
     const assignedBook = String(onboarded.book || '').trim();
-    const assignedBookLink = String(onboarded.bookNameLink || '').trim();
+    const assignedBookLink = String(onboarded.workbookNameLink || '').trim();
     const assignedScriptUrl = String(onboarded.scriptUrl || '').trim();
     const isConfigured = Boolean(onboarded.configured && assignedBook && assignedBookLink && assignedScriptUrl);
     state.scriptUrl = isConfigured ? assignedScriptUrl : null;
-    state.bookNameLink = isConfigured ? assignedBookLink : null;
+    state.workbookNameLink = isConfigured ? assignedBookLink : null;
     if(!isConfigured){
-      document.getElementById('setupMessage').textContent = 'Your account is registered, but the onboarding service has not returned bookName and scriptUrl. Redeploy the updated userOnBoard script, then reload.';
+      document.getElementById('setupMessage').textContent = 'Your account is registered, but the onboarding service has not returned workbookName and scriptUrl. Redeploy the updated userOnBoard script, then reload.';
       state.loaded = true;
       render();
       return;
@@ -1175,7 +1175,7 @@ document.getElementById('newBookBtn').addEventListener('click', ()=>{
     <div class="modal">
       <h3>New Khatabook</h3>
       <label class="field-label">Name (e.g. vendor or category)</label>
-      <input type="text" id="newBookName" placeholder="e.g. ABC Suppliers">
+      <input type="text" id="newWorkbookName" placeholder="e.g. ABC Suppliers">
       <div class="modal-buttons">
         <button class="btn-cancel" id="cancelNewBook">Cancel</button>
         <button class="btn-save" id="confirmNewBook">Create</button>
@@ -1185,7 +1185,7 @@ document.getElementById('newBookBtn').addEventListener('click', ()=>{
   document.body.appendChild(backdrop);
   backdrop.querySelector('#cancelNewBook').onclick = ()=> backdrop.remove();
   backdrop.querySelector('#confirmNewBook').onclick = async ()=>{
-    const name = backdrop.querySelector('#newBookName').value.trim();
+    const name = backdrop.querySelector('#newWorkbookName').value.trim();
     if(!name){ showToast('Enter a name for the khatabook'); return; }
     try{
       const result = await postToSheet({action:'createBook', name});
