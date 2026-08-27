@@ -13,10 +13,15 @@ function getUserOnBoardSheet_() {
   let sheet = spreadsheet.getSheetByName(USER_ONBOARD_SHEET);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(USER_ONBOARD_SHEET);
-    sheet.getRange(1, 1, 1, 6).setValues([[
-      'email', 'name', 'workbookName', 'workbookNameLink', 'scriptUrl', 'createdAt'
+    sheet.getRange(1, 1, 1, 5).setValues([[
+      'email', 'name', 'workbookName', 'scriptUrl', 'createdAt'
     ]]);
     sheet.setFrozenRows(1);
+  }
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  for (let column = headers.length - 1; column >= 0; column--) {
+    const header = String(headers[column]).trim().toLowerCase().replace(/[\s_-]+/g, '');
+    if (header === 'workbooknamelink') sheet.deleteColumn(column + 1);
   }
   return sheet;
 }
@@ -32,7 +37,6 @@ function getUserOnBoardColumns_() {
   ['email', 'name', 'workbookname', 'scripturl', 'createdat'].forEach(function(required) {
     if (columns[required] === undefined) throw new Error('Missing userOnBoard column: ' + required);
   });
-  columns.workbooknamelink = columns.workbooknamelink === undefined ? -1 : columns.workbooknamelink;
   return columns;
 }
 
@@ -69,7 +73,6 @@ function findUserOnBoard_(email) {
         email: email,
         name: String(values[row][columns.name] || '').trim(),
         workbookName: String(values[row][columns.workbookname] || '').trim(),
-        workbookNameLink: columns.workbooknamelink < 0 ? '' : String(values[row][columns.workbooknamelink] || '').trim(),
         scriptUrl: String(values[row][columns.scripturl] || '').trim()
       };
     }
@@ -86,6 +89,7 @@ function onboardUser_(credential, displayName) {
     const row = new Array(sheet.getLastColumn()).fill('');
     row[columns.email] = profile.email;
     row[columns.name] = String(displayName || profile.name);
+    row[columns.workbookname] = workbookNameForEmail_(profile.email);
     row[columns.createdat] = new Date();
     sheet.appendRow(row);
     user = findUserOnBoard_(profile.email);
@@ -132,7 +136,6 @@ function handleOnboardAction_(payload) {
   const result = onboardUser_(payload.credential, payload.name);
   const configured = Boolean(
     String(result.user.workbookName || '').trim() &&
-    String(result.user.workbookNameLink || '').trim() &&
     String(result.user.scriptUrl || '').trim()
   );
   return {
@@ -141,7 +144,6 @@ function handleOnboardAction_(payload) {
     name: result.user.name,
     configured: configured,
     book: result.user.workbookName,
-    workbookNameLink: result.user.workbookNameLink,
     scriptUrl: result.user.scriptUrl,
     books: configured ? [result.user.workbookName] : []
   };
