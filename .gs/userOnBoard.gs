@@ -14,7 +14,7 @@ function getUserOnBoardSheet_() {
   if (!sheet) {
     sheet = spreadsheet.insertSheet(USER_ONBOARD_SHEET);
     sheet.getRange(1, 1, 1, 6).setValues([[
-      'email', 'name', 'bookName', 'bookNameLink', 'scriptUrl', 'createdAt'
+      'email', 'name', 'workbookName', 'workbookNameLink', 'scriptUrl', 'createdAt'
     ]]);
     sheet.setFrozenRows(1);
   }
@@ -29,10 +29,10 @@ function getUserOnBoardColumns_() {
     });
   const columns = {};
   headers.forEach(function(header, index) { columns[header] = index; });
-  ['email', 'name', 'bookname', 'scripturl', 'createdat'].forEach(function(required) {
+  ['email', 'name', 'workbookname', 'scripturl', 'createdat'].forEach(function(required) {
     if (columns[required] === undefined) throw new Error('Missing userOnBoard column: ' + required);
   });
-  columns.booknamelink = columns.booknamelink === undefined ? -1 : columns.booknamelink;
+  columns.workbooknamelink = columns.workbooknamelink === undefined ? -1 : columns.workbooknamelink;
   return columns;
 }
 
@@ -54,7 +54,7 @@ function verifyGoogleCredential_(credential) {
   return { email: email, name: String(profile.name || email.split('@')[0]) };
 }
 
-function bookNameForEmail_(email) {
+function workbookNameForEmail_(email) {
   return email.substring(0, email.indexOf('@')).substring(0, MAX_BOOK_NAME_LENGTH);
 }
 
@@ -68,8 +68,8 @@ function findUserOnBoard_(email) {
         row: row + 1,
         email: email,
         name: String(values[row][columns.name] || '').trim(),
-        bookName: String(values[row][columns.bookname] || '').trim(),
-        bookNameLink: columns.booknamelink < 0 ? '' : String(values[row][columns.booknamelink] || '').trim(),
+        workbookName: String(values[row][columns.workbookname] || '').trim(),
+        workbookNameLink: columns.workbooknamelink < 0 ? '' : String(values[row][columns.workbooknamelink] || '').trim(),
         scriptUrl: String(values[row][columns.scripturl] || '').trim()
       };
     }
@@ -99,40 +99,40 @@ function requireUserBook_(credential, requestedBook) {
   const profile = verifyGoogleCredential_(credential);
   const user = findUserOnBoard_(profile.email);
   if (!user) throw new Error('Complete onboarding first');
-  if (requestedBook && requestedBook !== user.bookName) {
+  if (requestedBook && requestedBook !== user.workbookName) {
     throw new Error('You do not have access to this book');
   }
   return { profile: profile, user: user };
 }
 
-function renameUserBook_(credential, newBookName) {
-  const access = requireUserBook_(credential, accessBookNameForUser_(credential));
-  const cleanName = String(newBookName || '').trim().substring(0, MAX_BOOK_NAME_LENGTH);
+function renameUserBook_(credential, newWorkbookName) {
+  const access = requireUserBook_(credential, accessWorkbookNameForUser_(credential));
+  const cleanName = String(newWorkbookName || '').trim().substring(0, MAX_BOOK_NAME_LENGTH);
   if (!cleanName) throw new Error('Book name is required');
   const spreadsheet = SpreadsheetApp.openById(USER_ONBOARD_SPREADSHEET_ID);
   if (spreadsheet.getSheetByName(cleanName)) throw new Error('Book name is already in use');
-  spreadsheet.getSheetByName(access.user.bookName).setName(cleanName);
+  spreadsheet.getSheetByName(access.user.workbookName).setName(cleanName);
   getUserOnBoardSheet_().getRange(access.user.row, 3).setValue(cleanName);
   return cleanName;
 }
 
-function accessBookNameForUser_(credential) {
+function accessWorkbookNameForUser_(credential) {
   const profile = verifyGoogleCredential_(credential);
   const user = findUserOnBoard_(profile.email);
   if (!user) throw new Error('Complete onboarding first');
-  return user.bookName;
+  return user.workbookName;
 }
 
 /**
  * Call this at the beginning of the existing doGet(e):
  *   const access = requireUserBook_(e.parameter.credential, e.parameter.book);
- * Then use access.user.bookName instead of trusting e.parameter.book.
+ * Then use access.user.workbookName instead of trusting e.parameter.book.
  */
 function handleOnboardAction_(payload) {
   const result = onboardUser_(payload.credential, payload.name);
   const configured = Boolean(
-    String(result.user.bookName || '').trim() &&
-    String(result.user.bookNameLink || '').trim() &&
+    String(result.user.workbookName || '').trim() &&
+    String(result.user.workbookNameLink || '').trim() &&
     String(result.user.scriptUrl || '').trim()
   );
   return {
@@ -140,10 +140,10 @@ function handleOnboardAction_(payload) {
     email: result.profile.email,
     name: result.user.name,
     configured: configured,
-    book: result.user.bookName,
-    bookNameLink: result.user.bookNameLink,
+    book: result.user.workbookName,
+    workbookNameLink: result.user.workbookNameLink,
     scriptUrl: result.user.scriptUrl,
-    books: configured ? [result.user.bookName] : []
+    books: configured ? [result.user.workbookName] : []
   };
 }
 
@@ -152,7 +152,7 @@ function handleOnboardAction_(payload) {
  *   const payload = JSON.parse(e.postData.contents);
  *   if (payload.action === 'onboard') return json_(handleOnboardAction_(payload));
  *   const access = requireUserBook_(payload.credential, payload.book);
- *   payload.book = access.user.bookName;
+ *   payload.book = access.user.workbookName;
  */
 function setupUserOnBoardSheet_() {
   getUserOnBoardSheet_();
