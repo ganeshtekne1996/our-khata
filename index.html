@@ -464,7 +464,6 @@ const state = {
   credential: null,
   loaded: false,
   scriptUrl: null,
-  workbookNameLink: null,
   saving: false
 };
 let pollTimer = null;
@@ -690,11 +689,9 @@ async function loadAll(){
   try{
     const onboarded = await onboardUser();
     const assignedBook = String(onboarded.book || '').trim();
-    const assignedBookLink = String(onboarded.workbookNameLink || '').trim();
     const assignedScriptUrl = String(onboarded.scriptUrl || '').trim();
-    const isConfigured = Boolean(onboarded.configured && assignedBook && assignedBookLink && assignedScriptUrl);
+    const isConfigured = Boolean(onboarded.configured && assignedBook && assignedScriptUrl);
     state.scriptUrl = isConfigured ? assignedScriptUrl : null;
-    state.workbookNameLink = isConfigured ? assignedBookLink : null;
     if(!isConfigured){
       document.getElementById('setupMessage').textContent = 'Your account is registered, but the onboarding service has not returned workbookName and scriptUrl. Redeploy the updated userOnBoard script, then reload.';
       state.loaded = true;
