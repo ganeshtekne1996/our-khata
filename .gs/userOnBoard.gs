@@ -37,9 +37,11 @@ function getUserOnBoardColumns_() {
   ['email', 'name', 'workbookname', 'scripturl', 'createdat'].forEach(function(required) {
     if (columns[required] === undefined) throw new Error('Missing userOnBoard column: ' + required);
   });
-  // workbookurl is optional: add a column with this header (any case/spacing)
-  // to pin each user's data to a specific spreadsheet ID/URL. Until it's
-  // added, onboarding still works exactly as before.
+  // workbookurl and sheetid are both optional: add a column with either
+  // header (any case/spacing) to pin each user's data to a specific
+  // spreadsheet. sheetid should hold the raw spreadsheet ID; workbookurl
+  // can hold a full Sheets link instead — whichever is easier to paste.
+  // Until one is added, onboarding still works exactly as before.
   return columns;
 }
 
@@ -86,6 +88,10 @@ function findUserOnBoard_(email) {
   for (let row = 1; row < values.length; row++) {
     const rowEmail = String(values[row][columns.email] || '').trim().toLowerCase();
     if (rowEmail !== cleanEmail) continue;
+    // Prefer a raw SHEET_ID column if present (no parsing needed); fall
+    // back to workbookUrl (a full Sheets link) otherwise.
+    const rawSheetId = columns.sheetid !== undefined
+      ? String(values[row][columns.sheetid] || '').trim() : '';
     const rawWorkbookUrl = columns.workbookurl !== undefined
       ? String(values[row][columns.workbookurl] || '').trim() : '';
     const candidate = {
@@ -95,7 +101,7 @@ function findUserOnBoard_(email) {
       workbookName: String(values[row][columns.workbookname] || '').trim(),
       scriptUrl: String(values[row][columns.scripturl] || '').trim(),
       workbookUrl: rawWorkbookUrl,
-      spreadsheetId: parseSpreadsheetId_(rawWorkbookUrl)
+      spreadsheetId: parseSpreadsheetId_(rawSheetId) || parseSpreadsheetId_(rawWorkbookUrl)
     };
     // If duplicate rows exist for this email (e.g. from a race before this
     // fix), prefer the one that has actually been configured with a
@@ -184,10 +190,11 @@ function handleOnboardAction_(payload) {
     configured: configured,
     book: result.user.workbookName,
     scriptUrl: result.user.scriptUrl,
-    // Optional: only populated once you add a 'workbookUrl' column and paste
-    // the target spreadsheet's link/ID into that user's row. Pass this
-    // through on every fetch/save call so the entries script opens the
-    // correct spreadsheet explicitly instead of relying on its own binding.
+    // Optional: only populated once you add a 'SHEET_ID' (raw spreadsheet
+    // ID) or 'workbookUrl' (full Sheets link) column and fill it in for
+    // that user's row. Pass this through on every fetch/save call so the
+    // entries script opens the correct spreadsheet explicitly instead of
+    // relying on its own binding.
     spreadsheetId: result.user.spreadsheetId || '',
     workbookUrl: result.user.workbookUrl || '',
     books: configured ? [result.user.workbookName] : []

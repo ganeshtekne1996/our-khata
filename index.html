@@ -677,6 +677,8 @@ async function onboardUser(){
 }
 
 function applySheetResponse(data){
+  if(Array.isArray(data.books)) state.books = [...new Set(data.books)];
+  if(data.activeBook) state.activeBook = data.activeBook;
   state.entries = (data.entries||[])
     .map(e=>({
       ...e,
@@ -705,13 +707,13 @@ async function loadAll(){
       render();
       return;
     }
-    state.activeBook = assignedBook;
-    state.books = [assignedBook];
-    await saveBookPref(state.activeBook);
+    const savedBook = await loadBookPref();
+    state.activeBook = savedBook || assignedBook;
+    state.books = Array.isArray(onboarded.books) && onboarded.books.length
+      ? [...new Set(onboarded.books)] : [assignedBook];
     const sheetData = await fetchFromSheet(state.activeBook);
     applySheetResponse(sheetData);
-    state.activeBook = assignedBook;
-    state.books = [assignedBook];
+    await saveBookPref(state.activeBook);
     setSyncStatus('Synced ✓ — updates every 15s');
   }catch(err){
     console.error('load error', err);
@@ -730,8 +732,6 @@ function schedulePoll(){
     try{
       const data = await fetchFromSheet(state.activeBook);
       applySheetResponse(data);
-      state.activeBook = state.books[0] || state.activeBook;
-      state.books = [state.activeBook];
       setSyncStatus('Synced ✓ — updates every 15s');
       render();
     }catch(err){
@@ -859,7 +859,7 @@ function renderBookSelect(){
   document.getElementById('bookSelectLabel').textContent = state.activeBook || 'Assigned khatabook';
   const dd = document.getElementById('bookSelectDropdown');
   dd.innerHTML = '';
-  state.books.slice(0, 1).forEach(name=>{
+  state.books.forEach(name=>{
     const item = document.createElement('button');
     item.className = 'menu-item';
     item.textContent = name;
@@ -1132,6 +1132,7 @@ function openHistoryModal(){
       try{
         const result = await postToSheet({action:'restoreBook', name});
         if(!result.ok) throw new Error(result.error || 'Could not restore');
+        if(!state.books.includes(result.book)) state.books.push(result.book);
         state.activeBook = result.book;
         await saveBookPref(result.book);
         const data = await fetchFromSheet(result.book);
@@ -1194,6 +1195,7 @@ document.getElementById('newBookBtn').addEventListener('click', ()=>{
     try{
       const result = await postToSheet({action:'createBook', name});
       if(!result.ok) throw new Error(result.error || 'Could not create khatabook');
+      if(!state.books.includes(result.book)) state.books.push(result.book);
       state.activeBook = result.book;
       await saveBookPref(result.book);
       const data = await fetchFromSheet(result.book);
@@ -1230,6 +1232,8 @@ document.getElementById('renameBookBtn').addEventListener('click', ()=>{
     try{
       const result = await postToSheet({action:'renameBook', oldName: state.activeBook, newName});
       if(!result.ok) throw new Error(result.error || 'Could not rename khatabook');
+      const renamedIndex = state.books.indexOf(state.activeBook);
+      if(renamedIndex > -1) state.books[renamedIndex] = result.book;
       state.activeBook = result.book;
       await saveBookPref(result.book);
       const data = await fetchFromSheet(result.book);
@@ -1285,6 +1289,7 @@ document.getElementById('deleteBookBtn').addEventListener('click', async ()=>{
   try{
     const result = await postToSheet({action:'deleteBook', name: deletedName});
     if(!result.ok) throw new Error(result.error || 'Could not delete khatabook');
+    state.books = state.books.filter(name=>name !== deletedName);
     const data = await fetchFromSheet(); // let server pick a new default book
     applySheetResponse(data);
     await saveBookPref(state.activeBook);
