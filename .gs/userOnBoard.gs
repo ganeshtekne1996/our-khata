@@ -3,7 +3,7 @@
  * Merge these functions into the Apps Script deployment used by the app.
  * Set GOOGLE_CLIENT_ID to the same web client ID used in index.html.
  */
-const USER_ONBOARD_SPREADSHEET_ID = '1DjmVesr0grY9xDJwTRqVHNVvX4Fizn2EwLHPx2Pj0RI';
+const USER_ONBOARD_SPREADSHEET_ID = '1KqL4d9KmoTNWAoJE5kaJBryGaSjIfgpr6ZRRjQmr50Y';
 const USER_ONBOARD_SHEET = 'userOnBoard';
 const MAX_BOOK_NAME_LENGTH = 100;
 // NOTE: GmailApp.sendEmail always sends from whichever Google account owns
@@ -240,6 +240,9 @@ function sendOtp_(user, force) {
   const now = new Date();
   const currentExpiry = user.otpExpiresAt instanceof Date ? user.otpExpiresAt : null;
   if (!force && user.createdOtp && currentExpiry && currentExpiry.getTime() > now.getTime()) return;
+  if (force && currentExpiry && currentExpiry.getTime() > now.getTime()) {
+    throw new Error('You can request a new OTP after the current OTP expires.');
+  }
   const cooldownKey = 'otp-sent-' + user.email;
   const cache = CacheService.getScriptCache();
   if (force && cache.get(cooldownKey)) {
