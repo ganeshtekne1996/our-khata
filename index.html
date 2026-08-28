@@ -308,6 +308,7 @@
   .toast.show{ opacity:1; }
   .account-card{ text-align:center; }
   .account-email{ color:var(--text-muted); font-size:12px; margin-top:8px; }
+  .otp-input{ text-align:center; letter-spacing:.35em; font-family:'IBM Plex Mono',monospace; font-size:22px !important; }
 
   @media (max-width:360px){
     .balance-amount{ font-size:26px; }
@@ -329,6 +330,16 @@
     <div class="form-card" id="setupCard" style="display:none;">
       <label class="field-label">Account setup pending</label>
       <div class="entry-meta" id="setupMessage" style="margin-top:8px;">Your account is registered. Access will be enabled after your book is assigned.</div>
+    </div>
+
+    <div class="form-card account-card" id="otpCard" style="display:none;">
+      <label class="field-label">Verify your email</label>
+      <div class="entry-meta" id="otpMessage" style="margin-top:8px;">We sent a 4-digit OTP to your Gmail address.</div>
+      <input class="otp-input" id="otpInput" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" style="margin-top:12px;">
+      <div class="modal-buttons">
+        <button class="btn-save" id="verifyOtpBtn">Verify OTP</button>
+        <button class="btn-cancel" id="resendOtpBtn">Resend</button>
+      </div>
     </div>
 
     <div id="mainUI" style="display:none;">
@@ -465,7 +476,8 @@ const state = {
   loaded: false,
   scriptUrl: null,
   spreadsheetId: null,
-  saving: false
+  saving: false,
+  otpRequired: false
 };
 let pollTimer = null;
 
@@ -559,6 +571,7 @@ function logOff(){
   sessionStorage.removeItem('khata_google_email');
   if(pollTimer) clearInterval(pollTimer);
   state.email = null; state.credential = null; state.myName = null;
+  state.otpRequired = false;
   state.entries = []; state.books = []; state.archivedBooks = []; state.activeBook = null; state.loaded = false;
   state.scriptUrl = null; state.spreadsheetId = null;
   render();
@@ -676,6 +689,28 @@ async function onboardUser(){
   return data;
 }
 
+async function verifyOtp(otp){
+  const res = await fetch(DEFAULT_USER_ONBOARD_SCRIPT_URL, {
+    method:'POST',
+    headers: {'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({action:'verifyOtp', credential:state.credential, otp})
+  });
+  const data = await res.json();
+  if(!res.ok || !data.ok) throw new Error(data.error || 'Could not verify OTP');
+  return data;
+}
+
+async function resendOtp(){
+  const res = await fetch(DEFAULT_USER_ONBOARD_SCRIPT_URL, {
+    method:'POST',
+    headers: {'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({action:'resendOtp', credential:state.credential})
+  });
+  const data = await res.json();
+  if(!res.ok || !data.ok) throw new Error(data.error || 'Could not resend OTP');
+  return data;
+}
+
 function applySheetResponse(data){
   if(Array.isArray(data.books)) state.books = [...new Set(data.books)];
   if(data.activeBook) state.activeBook = data.activeBook;
@@ -696,6 +731,13 @@ async function loadAll(){
   setSyncStatus('Syncing…');
   try{
     const onboarded = await onboardUser();
+    if(onboarded.requiresOtp){
+      state.otpRequired = true;
+      state.loaded = true;
+      render();
+      return;
+    }
+    state.otpRequired = false;
     const assignedBook = String(onboarded.book || '').trim();
     const assignedScriptUrl = String(onboarded.scriptUrl || '').trim();
     const isConfigured = Boolean(onboarded.configured && assignedBook && assignedScriptUrl);
@@ -838,10 +880,18 @@ function render(){
     authCard.style.display = 'block';
     setupCard.style.display = 'none';
     mainUI.style.display = 'none';
+    document.getElementById('otpCard').style.display = 'none';
     setSyncStatus('');
     return;
   }
   authCard.style.display = 'none';
+  document.getElementById('otpCard').style.display = state.otpRequired ? 'block' : 'none';
+  if(state.otpRequired){
+    setupCard.style.display = 'none';
+    mainUI.style.display = 'none';
+    document.getElementById('otpMessage').textContent = 'We sent a 4-digit OTP to '+state.email+'.';
+    return;
+  }
   if(!state.scriptUrl){
     setupCard.style.display = 'block';
     mainUI.style.display = 'none';
@@ -1156,6 +1206,37 @@ document.getElementById('paymentModeSelect').addEventListener('change', ()=>{
   updateButtons();
 });
 document.getElementById('otherPaymentInput').addEventListener('input', updateButtons);
+document.getElementById('verifyOtpBtn').addEventListener('click', async ()=>{
+  const input = document.getElementById('otpInput');
+  const otp = input.value.trim();
+  if(!/^\d{4}$/.test(otp)){
+    document.getElementById('otpMessage').textContent = 'Enter the 4-digit OTP';
+    return;
+  }
+  const button = document.getElementById('verifyOtpBtn');
+  button.disabled = true;
+  try{
+    await verifyOtp(otp);
+    state.otpRequired = false;
+    input.value = '';
+    await loadAll();
+  }catch(err){
+    document.getElementById('otpMessage').textContent = err.message || 'Could not verify OTP';
+  }finally{ button.disabled = false; }
+});
+document.getElementById('otpInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter') document.getElementById('verifyOtpBtn').click();
+});
+document.getElementById('resendOtpBtn').addEventListener('click', async ()=>{
+  const button = document.getElementById('resendOtpBtn');
+  button.disabled = true;
+  try{
+    await resendOtp();
+    document.getElementById('otpMessage').textContent = 'A new OTP was sent to '+state.email+'.';
+  }catch(err){
+    document.getElementById('otpMessage').textContent = err.message || 'Could not resend OTP';
+  }finally{ button.disabled = false; }
+});
 document.getElementById('btnGave').addEventListener('click', ()=>addEntry('gave'));
 document.getElementById('btnGot').addEventListener('click', ()=>addEntry('got'));
 document.getElementById('exportBtn').addEventListener('click', exportCSV);
