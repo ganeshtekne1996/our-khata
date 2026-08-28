@@ -453,7 +453,7 @@ function json_(value) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function doPost(e) {
+function onboardDoPost_(e) {
   try {
     const payload = JSON.parse(e.postData.contents || '{}');
     if (payload.action === 'verifyOtp') return json_(handleVerifyOtpAction_(payload));
@@ -465,7 +465,42 @@ function doPost(e) {
   }
 }
 
-function doGet() {
+function onboardDoGet_() {
   setupUserOnBoardSheet_();
   return json_({ok: true, service: 'userOnBoard'});
+}
+
+// ---------------------------------------------------------------------
+// SINGLE entry point for the whole deployment. Both this file and
+// apps-script-connector.gs must live in the SAME Apps Script project
+// (that's why apps-script-connector.gs's entries logic can call
+// requireUserBook_, which is defined here). A project can only have one
+// doGet/doPost, so this dispatcher decides whether a request is an
+// onboarding request (no book/entries data yet) or an entries request
+// (reading/writing the ledger) and routes it accordingly.
+//
+// The three onboarding actions are the only POST actions that don't
+// require a sessionToken yet, so they're the dispatch key. Everything
+// else (add/update/delete/settings/createBook/renameBook/deleteBook, and
+// all GET requests) goes to the entries connector, which itself enforces
+// the sessionToken via requireUserBook_.
+// ---------------------------------------------------------------------
+const ONBOARD_ACTIONS_ = ['onboard', 'verifyOtp', 'resendOtp'];
+
+function doPost(e) {
+  let payload;
+  try {
+    payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+  } catch (err) {
+    return json_({ ok: false, error: 'Invalid request body' });
+  }
+  if (ONBOARD_ACTIONS_.indexOf(payload.action) !== -1) {
+    return onboardDoPost_(e);
+  }
+  return entriesDoPost_(e);
+}
+
+function doGet(e) {
+  if (e && e.parameter && e.parameter.ping) return onboardDoGet_();
+  return entriesDoGet_(e);
 }

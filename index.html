@@ -727,6 +727,7 @@ async function loadAll(){
       return;
     }
     state.otpRequired = false;
+    state.sessionToken = onboarded.sessionToken || null;
     const assignedBook = String(onboarded.book || '').trim();
     const assignedScriptUrl = String(onboarded.scriptUrl || '').trim();
     const isConfigured = Boolean(onboarded.configured && assignedBook && assignedScriptUrl);
@@ -761,7 +762,6 @@ async function loadAll(){
 }
 
 function schedulePoll(){
-  state.sessionToken = onboarded.sessionToken || null;
   if(!state.scriptUrl) return;
   pollTimer = setInterval(async ()=>{
     if(state.saving) return;
