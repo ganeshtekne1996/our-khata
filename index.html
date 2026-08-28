@@ -10,7 +10,6 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --ink-navy:#1E5A8C;
@@ -130,7 +129,7 @@
     display:block;
     margin-bottom:3px;
   }
-  input[type=number], input[type=date], input[type=text], select{
+  input[type=number], input[type=date], input[type=text], input[type=email], input[type=tel], select{
     width:100%;
     border:1px solid #D8CDAF;
     background:#fff;
@@ -141,7 +140,7 @@
     color:var(--text-dark);
   }
   select{ appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238A7F68'%3E%3Cpath d='M5.5 7.5l4.5 4.5 4.5-4.5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; background-size:14px; padding-right:30px; }
-  select.invalid{ border-color:var(--margin-red); }
+  input.invalid, select.invalid{ border-color:var(--margin-red); }
   input[type=number]{ font-family:'IBM Plex Mono',monospace; font-weight:600; }
   input:focus, select:focus{ outline:2px solid var(--gold); outline-offset:1px; }
 
@@ -322,9 +321,13 @@
     <header class="title-row" style="display:none;"></header>
 
     <div class="form-card account-card" id="authCard" style="display:none;">
-      <label class="field-label">Sign in to Our Khata</label>
-      <div id="googleSignInButton" style="display:flex; justify-content:center; margin-top:12px;"></div>
-      <div class="entry-meta" id="authMessage" style="margin-top:10px;">Only Gmail accounts are supported.</div>
+      <label class="field-label">Create your Our Khata account</label>
+      <input type="email" id="emailInput" placeholder="Email address" autocomplete="email" style="margin-top:12px;">
+      <input type="text" id="firstNameInput" placeholder="First name" autocomplete="given-name" style="margin-top:8px;">
+      <input type="text" id="lastNameInput" placeholder="Last name" autocomplete="family-name" style="margin-top:8px;">
+      <input type="tel" id="mobileInput" placeholder="Mobile number (optional)" autocomplete="tel" style="margin-top:8px;">
+      <button class="btn-save" id="registerBtn" style="width:100%; margin-top:12px; padding:10px; border:0; border-radius:6px; cursor:pointer;">Continue</button>
+      <div class="entry-meta" id="authMessage" style="margin-top:10px;">We will send a verification code to your email.</div>
     </div>
 
     <div class="form-card" id="setupCard" style="display:none;">
@@ -472,7 +475,7 @@ const state = {
   settings: { you: 'You', friend: 'Friend' },
   myName: null,
   email: null,
-  credential: null,
+  sessionToken: null,
   loaded: false,
   scriptUrl: null,
   spreadsheetId: null,
@@ -519,58 +522,15 @@ function showToast(msg){
 }
 function uid(){ return 'e_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
 
-const GOOGLE_CLIENT_ID = '938761019761-ur365n4lqqav25vs2eb38clqajvhb0f3.apps.googleusercontent.com';
 function accountStorageKey(key){
   return state.email ? key+'_'+state.email.toLowerCase() : key;
 }
-function decodeJwtPayload(token){
-  try{
-    const part = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-    return JSON.parse(atob(part.padEnd(part.length + (4-part.length%4)%4, '=')));
-  }catch(err){ return null; }
-}
 function setAuthMessage(text){ document.getElementById('authMessage').textContent = text; }
-function signInWithGoogle(response){
-  const profile = decodeJwtPayload(response.credential);
-  if(!profile || !profile.email || !profile.email.toLowerCase().endsWith('@gmail.com')){
-    setAuthMessage('Only @gmail.com accounts can use this app.');
-    return;
-  }
-  state.email = profile.email.toLowerCase();
-  state.credential = response.credential;
-  state.myName = profile.name || null;
-  sessionStorage.setItem('khata_google_credential', response.credential);
-  sessionStorage.setItem('khata_google_email', state.email);
-  loadAll();
-}
-function initializeGoogleSignIn(){
-  if(!window.google || !window.google.accounts || GOOGLE_CLIENT_ID.startsWith('REPLACE_')){
-    setAuthMessage('Set GOOGLE_CLIENT_ID in index.html before enabling sign-in.');
-    return;
-  }
-  google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID, callback:signInWithGoogle, auto_select:false});
-  google.accounts.id.renderButton(document.getElementById('googleSignInButton'), {theme:'outline', size:'large', text:'signin_with', shape:'rectangular'});
-}
-function restoreGoogleSession(){
-  const credential = sessionStorage.getItem('khata_google_credential');
-  const email = sessionStorage.getItem('khata_google_email');
-  if(credential && email){
-    const profile = decodeJwtPayload(credential);
-    if(profile && profile.email && profile.email.toLowerCase() === email){
-      state.email = email;
-      state.credential = credential;
-      state.myName = profile.name || null;
-      return true;
-    }
-  }
-  return false;
-}
 function logOff(){
-  if(window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
-  sessionStorage.removeItem('khata_google_credential');
-  sessionStorage.removeItem('khata_google_email');
+  sessionStorage.removeItem('khata_session_token');
+  sessionStorage.removeItem('khata_email');
   if(pollTimer) clearInterval(pollTimer);
-  state.email = null; state.credential = null; state.myName = null;
+  state.email = null; state.sessionToken = null; state.myName = null;
   state.otpRequired = false;
   state.entries = []; state.books = []; state.archivedBooks = []; state.activeBook = null; state.loaded = false;
   state.scriptUrl = null; state.spreadsheetId = null;
@@ -651,7 +611,7 @@ async function saveBookPref(name){
 async function fetchFromSheet(workbookName){
   let url = state.scriptUrl;
   if(workbookName) url += (url.includes('?') ? '&' : '?') + 'book=' + encodeURIComponent(workbookName);
-  url += (url.includes('?') ? '&' : '?') + 'credential=' + encodeURIComponent(state.credential || '');
+  url += (url.includes('?') ? '&' : '?') + 'sessionToken=' + encodeURIComponent(state.sessionToken || '');
   // Pin the request to the exact spreadsheet assigned during onboarding,
   // so a misconfigured/copied entries script can't silently write to the
   // wrong workbook.
@@ -662,7 +622,7 @@ async function fetchFromSheet(workbookName){
 }
 
 async function postToSheet(payload){
-  payload = {...payload, credential:state.credential, spreadsheetId: state.spreadsheetId || undefined};
+  payload = {...payload, sessionToken:state.sessionToken, spreadsheetId: state.spreadsheetId || undefined};
   const res = await fetch(state.scriptUrl, {
     method:'POST',
     headers: {'Content-Type':'text/plain;charset=utf-8'},
@@ -678,9 +638,10 @@ async function onboardUser(){
     headers: {'Content-Type':'text/plain;charset=utf-8'},
     body: JSON.stringify({
       action:'onboard',
-      credential:state.credential,
-      email:state.email,
-      name:state.myName
+      email:document.getElementById('emailInput').value.trim(),
+      name:document.getElementById('firstNameInput').value.trim(),
+      lastName:document.getElementById('lastNameInput').value.trim(),
+      mobile:document.getElementById('mobileInput').value.trim()
     })
   });
   if(!res.ok) throw new Error('Onboarding failed: '+res.status);
@@ -693,7 +654,7 @@ async function verifyOtp(otp){
   const res = await fetch(DEFAULT_USER_ONBOARD_SCRIPT_URL, {
     method:'POST',
     headers: {'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify({action:'verifyOtp', credential:state.credential, otp})
+    body: JSON.stringify({action:'verifyOtp', email:state.email, otp})
   });
   const data = await res.json();
   if(!res.ok || !data.ok) throw new Error(data.error || 'Could not verify OTP');
@@ -704,7 +665,7 @@ async function resendOtp(){
   const res = await fetch(DEFAULT_USER_ONBOARD_SCRIPT_URL, {
     method:'POST',
     headers: {'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify({action:'resendOtp', credential:state.credential})
+    body: JSON.stringify({action:'resendOtp', email:state.email})
   });
   const data = await res.json();
   if(!res.ok || !data.ok) throw new Error(data.error || 'Could not resend OTP');
@@ -726,7 +687,7 @@ function applySheetResponse(data){
 }
 
 async function loadAll(){
-  if(!state.email || !state.credential){ render(); return; }
+  if(!state.email){ render(); return; }
   await ensureMyName();
   setSyncStatus('Syncing…');
   try{
@@ -760,7 +721,10 @@ async function loadAll(){
     setSyncStatus('Synced ✓ — updates every 15s');
   }catch(err){
     console.error('load error', err);
-    document.getElementById('setupMessage').textContent = err.message || 'Onboarding failed. Please try again.';
+    document.querySelector('#setupCard .field-label').textContent = 'Onboarding connection failed';
+    document.getElementById('setupMessage').textContent = err instanceof TypeError
+      ? 'The onboarding service is not publicly reachable. Set the Apps Script web app access to Anyone, redeploy it, then reload.'
+      : (err.message || 'Onboarding failed. Please try again.');
     setSyncStatus('Sync failed — check the Sheet URL / connection');
   }
   state.loaded = true;
@@ -769,7 +733,7 @@ async function loadAll(){
 }
 
 function schedulePoll(){
-  if(pollTimer) clearInterval(pollTimer);
+  state.sessionToken = onboarded.sessionToken || null;
   if(!state.scriptUrl) return;
   pollTimer = setInterval(async ()=>{
     if(state.saving) return;
@@ -877,7 +841,7 @@ function render(){
   const authCard = document.getElementById('authCard');
   const setupCard = document.getElementById('setupCard');
   const mainUI = document.getElementById('mainUI');
-  if(!state.email || !state.credential){
+  if(!state.email){
     authCard.style.display = 'block';
     setupCard.style.display = 'none';
     mainUI.style.display = 'none';
@@ -1199,6 +1163,32 @@ function openHistoryModal(){
   });
 }
 
+document.getElementById('registerBtn').addEventListener('click', async ()=>{
+  const emailInput = document.getElementById('emailInput');
+  const email = emailInput.value.trim().toLowerCase();
+  const firstName = document.getElementById('firstNameInput').value.trim();
+  const lastName = document.getElementById('lastNameInput').value.trim();
+  emailInput.classList.remove('invalid');
+  if(!email){
+    emailInput.classList.add('invalid');
+    setAuthMessage('Enter a valid email id');
+    emailInput.focus();
+    return;
+  }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    emailInput.classList.add('invalid');
+    setAuthMessage('Enter a valid email id');
+    emailInput.focus();
+    return;
+  }
+  if(!firstName || !lastName){ setAuthMessage('Email, first name and last name are required'); return; }
+  const button = document.getElementById('registerBtn');
+  button.disabled = true;
+  state.email = email;
+  state.myName = firstName;
+  try{ await loadAll(); }
+  finally{ button.disabled = false; }
+});
 document.getElementById('dateInput').value = todayStr();
 document.getElementById('amountInput').addEventListener('input', updateButtons);
 document.getElementById('paymentModeSelect').addEventListener('change', ()=>{
@@ -1383,14 +1373,7 @@ document.getElementById('deleteBookBtn').addEventListener('click', async ()=>{
   }
 });
 
-restoreGoogleSession();
 render();
-if(window.google && window.google.accounts){
-  initializeGoogleSignIn();
-}else{
-  window.addEventListener('load', initializeGoogleSignIn, {once:true});
-}
-if(state.email && state.credential) loadAll();
 </script>
 </body>
 </html>

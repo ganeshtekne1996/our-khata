@@ -3,21 +3,28 @@
  * Merge these functions into the Apps Script deployment used by the app.
  * Set GOOGLE_CLIENT_ID to the same web client ID used in index.html.
  */
-const GOOGLE_CLIENT_ID = '938761019761-ur365n4lqqav25vs2eb38clqajvhb0f3.apps.googleusercontent.com';
 const USER_ONBOARD_SPREADSHEET_ID = '1DjmVesr0grY9xDJwTRqVHNVvX4Fizn2EwLHPx2Pj0RI';
 const USER_ONBOARD_SHEET = 'userOnBoard';
 const MAX_BOOK_NAME_LENGTH = 100;
+// NOTE: GmailApp.sendEmail always sends from whichever Google account owns
+// and is authorized to run this deployment (Deploy > Manage deployments >
+// Execute as: Me). This constant does NOT control the sender — it exists
+// only as a reminder of which account that must be. If OTP emails aren't
+// arriving, first confirm this project is deployed/authorized under this
+// exact account, not just that this constant is set correctly.
 const OTP_SENDER_EMAIL = 'ganesh.tekne101@gmail.com';
 const OTP_SENDER_NAME = 'Our Khata';
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
+const SESSION_TOKEN_LENGTH = 32;
 
 function getUserOnBoardSheet_() {
   const spreadsheet = SpreadsheetApp.openById(USER_ONBOARD_SPREADSHEET_ID);
   let sheet = spreadsheet.getSheetByName(USER_ONBOARD_SHEET);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(USER_ONBOARD_SHEET);
-    sheet.getRange(1, 1, 1, 11).setValues([[
-      'email', 'name', 'workbookName', 'scriptUrl', 'SHEET_ID', 'createdAt',
-      'created_OTP', 'userEntered_OTP', 'otpExpiresAt', 'onboardingVerified', 'otpAttempts'
+    sheet.getRange(1, 1, 1, 15).setValues([[
+      'email', 'name', 'lastName', 'mobile', 'workbookName', 'scriptUrl', 'SHEET_ID', 'createdAt',
+      'created_OTP', 'userEntered_OTP', 'otpExpiresAt', 'onboardingVerified', 'otpAttempts', 'sessionToken', 'sessionTokenCreatedAt'
     ]]);
     sheet.setFrozenRows(1);
   }
@@ -46,7 +53,7 @@ function getUserOnBoardColumns_() {
     sheet.moveColumns(sheet.getRange(1, sheetIdIndex + 1, sheet.getMaxRows(), 1), scriptUrlIndex + 2);
     rawHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   }
-  const managedHeaders = ['created_OTP', 'userEntered_OTP', 'otpExpiresAt', 'onboardingVerified', 'otpAttempts'];
+  const managedHeaders = ['lastName', 'mobile', 'created_OTP', 'userEntered_OTP', 'otpExpiresAt', 'onboardingVerified', 'otpAttempts', 'sessionToken', 'sessionTokenCreatedAt'];
   managedHeaders.forEach(function(requiredHeader) {
     const normalized = requiredHeader.toLowerCase().replace(/[\s_-]+/g, '');
     const exists = rawHeaders.some(function(header) {
@@ -63,7 +70,7 @@ function getUserOnBoardColumns_() {
     });
   const columns = {};
   headers.forEach(function(header, index) { columns[header] = index; });
-  ['email', 'name', 'workbookname', 'scripturl', 'createdat', 'createdotp', 'userenteredotp', 'otpexpiresat', 'onboardingverified', 'otpattempts'].forEach(function(required) {
+  ['email', 'name', 'workbookname', 'scripturl', 'createdat', 'createdotp', 'userenteredotp', 'otpexpiresat', 'onboardingverified', 'otpattempts', 'sessiontoken'].forEach(function(required) {
     if (columns[required] === undefined) throw new Error('Missing userOnBoard column: ' + required);
   });
   // workbookurl remains optional; SHEET_ID can hold the raw spreadsheet ID
@@ -72,22 +79,20 @@ function getUserOnBoardColumns_() {
   return columns;
 }
 
-function verifyGoogleCredential_(credential) {
-  if (!credential) throw new Error('Sign-in is required');
-  const response = UrlFetchApp.fetch(
-    'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credential),
-    { muteHttpExceptions: true }
-  );
-  if (response.getResponseCode() !== 200) throw new Error('Invalid Google sign-in');
-  const profile = JSON.parse(response.getContentText());
-  const email = String(profile.email || '').toLowerCase();
-  if (!email.endsWith('@gmail.com') || profile.email_verified !== 'true') {
-    throw new Error('Only verified Gmail accounts are supported');
-  }
-  if (GOOGLE_CLIENT_ID.indexOf('REPLACE_') !== 0 && profile.aud !== GOOGLE_CLIENT_ID) {
-    throw new Error('Google client ID does not match');
-  }
-  return { email: email, name: String(profile.name || email.split('@')[0]) };
+function validateRegistration_(payload) {
+  const email = String(payload.email || '').trim().toLowerCase();
+  const firstName = String(payload.name || '').trim();
+  const lastName = String(payload.lastName || '').trim();
+  const mobile = String(payload.mobile || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email address');
+  if (!firstName) throw new Error('First name is required');
+  if (!lastName) throw new Error('Last name is required');
+  if (mobile && !/^\+?[0-9 ()-]{7,20}$/.test(mobile)) throw new Error('Enter a valid mobile number');
+  return { email: email, name: firstName, lastName: lastName, mobile: mobile };
+}
+
+function createSessionToken_() {
+  return Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').substring(0, SESSION_TOKEN_LENGTH);
 }
 
 function workbookNameForEmail_(email) {
@@ -125,6 +130,8 @@ function findUserOnBoard_(email) {
       row: row + 1,
       email: cleanEmail,
       name: String(values[row][columns.name] || '').trim(),
+      lastName: String(values[row][columns.lastname] || '').trim(),
+      mobile: String(values[row][columns.mobile] || '').trim(),
       workbookName: String(values[row][columns.workbookname] || '').trim(),
       scriptUrl: String(values[row][columns.scripturl] || '').trim(),
       workbookUrl: rawWorkbookUrl,
@@ -134,6 +141,7 @@ function findUserOnBoard_(email) {
       otpExpiresAt: values[row][columns.otpexpiresat],
       onboardingVerified: String(values[row][columns.onboardingverified] || '').toLowerCase() === 'true',
       otpAttempts: parseInt(values[row][columns.otpattempts], 10) || 0
+      ,sessionToken: String(values[row][columns.sessiontoken] || '').trim()
     };
     // If duplicate rows exist for this email (e.g. from a race before this
     // fix), prefer the one that has actually been configured with a
@@ -146,8 +154,22 @@ function findUserOnBoard_(email) {
   return match;
 }
 
-function onboardUser_(credential, displayName) {
-  const profile = verifyGoogleCredential_(credential);
+function findUserBySessionToken_(sessionToken) {
+  const token = String(sessionToken || '').trim();
+  if (!token) return null;
+  const sheet = getUserOnBoardSheet_();
+  const columns = getUserOnBoardColumns_();
+  const values = sheet.getDataRange().getValues();
+  for (let row = 1; row < values.length; row++) {
+    if (String(values[row][columns.sessiontoken] || '').trim() !== token) continue;
+    const user = findUserOnBoard_(String(values[row][columns.email] || '').trim());
+    if (user && user.onboardingVerified) return user;
+  }
+  return null;
+}
+
+function onboardUser_(payload) {
+  const profile = validateRegistration_(payload);
   const lock = LockService.getScriptLock();
   lock.waitLock(10000); // avoid two near-simultaneous first-logins creating duplicate rows
   try {
@@ -157,13 +179,17 @@ function onboardUser_(credential, displayName) {
     if (!user) {
       const row = new Array(sheet.getLastColumn()).fill('');
       row[columns.email] = profile.email;
-      row[columns.name] = String(displayName || profile.name);
+      row[columns.name] = profile.name;
+      row[columns.lastname] = profile.lastName;
+      row[columns.mobile] = profile.mobile;
       row[columns.workbookname] = workbookNameForEmail_(profile.email);
       row[columns.createdat] = new Date();
       sheet.appendRow(row);
       user = findUserOnBoard_(profile.email);
     } else {
-      sheet.getRange(user.row, columns.name + 1).setValue(String(displayName || profile.name));
+      sheet.getRange(user.row, columns.name + 1).setValue(profile.name);
+      sheet.getRange(user.row, columns.lastname + 1).setValue(profile.lastName);
+      sheet.getRange(user.row, columns.mobile + 1).setValue(profile.mobile);
       if (!user.workbookName) {
         user.workbookName = workbookNameForEmail_(profile.email);
         sheet.getRange(user.row, columns.workbookname + 1).setValue(user.workbookName);
@@ -175,19 +201,18 @@ function onboardUser_(credential, displayName) {
   }
 }
 
-function requireUserBook_(credential, requestedBook) {
-  const profile = verifyGoogleCredential_(credential);
-  const user = findUserOnBoard_(profile.email);
+function requireUserBook_(sessionToken, requestedBook) {
+  const user = findUserBySessionToken_(sessionToken);
   if (!user) throw new Error('Complete onboarding first');
   if (!user.onboardingVerified) throw new Error('Verify your email before accessing the app');
   if (requestedBook && requestedBook !== user.workbookName) {
     throw new Error('You do not have access to this book');
   }
-  return { profile: profile, user: user };
+  return { profile: { email: user.email, name: user.name }, user: user };
 }
 
-function renameUserBook_(credential, newWorkbookName) {
-  const access = requireUserBook_(credential, accessWorkbookNameForUser_(credential));
+function renameUserBook_(sessionToken, newWorkbookName) {
+  const access = requireUserBook_(sessionToken, accessWorkbookNameForUser_(sessionToken));
   const cleanName = String(newWorkbookName || '').trim().substring(0, MAX_BOOK_NAME_LENGTH);
   if (!cleanName) throw new Error('Book name is required');
   const spreadsheet = SpreadsheetApp.openById(USER_ONBOARD_SPREADSHEET_ID);
@@ -198,9 +223,8 @@ function renameUserBook_(credential, newWorkbookName) {
   return cleanName;
 }
 
-function accessWorkbookNameForUser_(credential) {
-  const profile = verifyGoogleCredential_(credential);
-  const user = findUserOnBoard_(profile.email);
+function accessWorkbookNameForUser_(sessionToken) {
+  const user = findUserBySessionToken_(sessionToken);
   if (!user) throw new Error('Complete onboarding first');
   if (!user.onboardingVerified) throw new Error('Verify your email before accessing the app');
   return user.workbookName;
@@ -217,7 +241,8 @@ function sendOtp_(user, force) {
   const currentExpiry = user.otpExpiresAt instanceof Date ? user.otpExpiresAt : null;
   if (!force && user.createdOtp && currentExpiry && currentExpiry.getTime() > now.getTime()) return;
   const cooldownKey = 'otp-sent-' + user.email;
-  if (force && CacheService.getScriptCache().get(cooldownKey)) {
+  const cache = CacheService.getScriptCache();
+  if (force && cache.get(cooldownKey)) {
     throw new Error('Please wait a minute before requesting another OTP.');
   }
   const otp = generateOtp_();
@@ -245,40 +270,57 @@ function sendOtp_(user, force) {
     .replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>')
     .replace(otp, '<strong style="font-size:24px;letter-spacing:4px;">' + otp + '</strong>');
-  const effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
-  const aliases = GmailApp.getAliases().map(function(alias) { return String(alias).toLowerCase(); });
-  const senderIsAlias = aliases.indexOf(OTP_SENDER_EMAIL) !== -1;
-  if (effectiveEmail !== OTP_SENDER_EMAIL && !senderIsAlias) {
-    throw new Error('Email sender is not configured. Add ' + OTP_SENDER_EMAIL + ' as a Gmail Send mail as address for the Apps Script account.');
-  }
+  // Gmail sends from the account that owns the web-app deployment. Do not
+  // call Session.getEffectiveUser(): it requires the userinfo.email scope.
+  // Deploy this web app to execute as OTP_SENDER_EMAIL.
   const mailOptions = {
     name: OTP_SENDER_NAME,
     htmlBody: htmlBody
   };
-  if (senderIsAlias) mailOptions.from = OTP_SENDER_EMAIL;
-  GmailApp.sendEmail(user.email, subject, body, mailOptions);
+  try {
+    GmailApp.sendEmail(user.email, subject, body, mailOptions);
+  } catch (err) {
+    // Surface the real reason in the Apps Script Executions log (Extensions
+    // > Apps Script > Executions) instead of a generic silent failure, and
+    // fail the request loudly so the client shows an error instead of
+    // pretending an OTP was sent.
+    Logger.log('sendOtp_ failed for ' + user.email + ': ' + err.message);
+    throw new Error('Could not send the OTP email. Ask the app owner to check the Apps Script Executions log and Gmail authorization for this deployment. (' + err.message + ')');
+  }
+  if (force) cache.put(cooldownKey, '1', OTP_RESEND_COOLDOWN_SECONDS);
 }
 
-function verifyOtp_(credential, submittedOtp) {
-  const profile = verifyGoogleCredential_(credential);
+function verifyOtp_(email, submittedOtp) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     const sheet = getUserOnBoardSheet_();
     const columns = getUserOnBoardColumns_();
-    const user = findUserOnBoard_(profile.email);
+    const user = findUserOnBoard_(String(email || '').trim().toLowerCase());
     if (!user) throw new Error('Complete onboarding first');
     const otp = String(submittedOtp || '').trim();
     sheet.getRange(user.row, columns.userenteredotp + 1).setNumberFormat('@').setValue(otp);
-    if (user.onboardingVerified) return { profile: profile, user: user };
+    if (user.onboardingVerified) {
+      if (!user.sessionToken) {
+        const token = createSessionToken_();
+        sheet.getRange(user.row, columns.sessiontoken + 1).setNumberFormat('@').setValue(token);
+        sheet.getRange(user.row, columns.sessiontokencreatedat + 1).setValue(new Date());
+        user.sessionToken = token;
+      }
+      return { profile: { email: user.email, name: user.name }, user: user };
+    }
     if (user.otpAttempts >= 5) throw new Error('Too many incorrect attempts. Request a new OTP.');
     const expiry = user.otpExpiresAt instanceof Date ? user.otpExpiresAt : null;
     if (!expiry || expiry.getTime() < Date.now()) throw new Error('This OTP has expired. Request a new OTP.');
     sheet.getRange(user.row, columns.otpattempts + 1).setValue(user.otpAttempts + 1);
     if (!/^\d{4}$/.test(otp) || otp !== user.createdOtp) throw new Error('Incorrect OTP');
     sheet.getRange(user.row, columns.onboardingverified + 1).setValue(true);
+    const sessionToken = createSessionToken_();
+    sheet.getRange(user.row, columns.sessiontoken + 1).setNumberFormat('@').setValue(sessionToken);
+    sheet.getRange(user.row, columns.sessiontokencreatedat + 1).setValue(new Date());
     user.onboardingVerified = true;
-    return { profile: profile, user: user };
+    user.sessionToken = sessionToken;
+    return { profile: { email: user.email, name: user.name }, user: user };
   } finally {
     lock.releaseLock();
   }
@@ -286,14 +328,20 @@ function verifyOtp_(credential, submittedOtp) {
 
 /**
  * Call this at the beginning of the existing doGet(e):
- *   const access = requireUserBook_(e.parameter.credential, e.parameter.book);
+ *   const access = requireUserBook_(e.parameter.sessionToken, e.parameter.book);
  * Then use access.user.workbookName instead of trusting e.parameter.book.
  */
 function handleOnboardAction_(payload) {
-  const result = onboardUser_(payload.credential, payload.name);
+  const result = onboardUser_(payload);
   if (!result.user.onboardingVerified) {
     sendOtp_(result.user, false);
     return { ok: true, email: result.profile.email, requiresOtp: true };
+  }
+  if (!result.user.sessionToken) {
+    const columns = getUserOnBoardColumns_();
+    const token = createSessionToken_();
+    getUserOnBoardSheet_().getRange(result.user.row, columns.sessiontoken + 1).setNumberFormat('@').setValue(token);
+    result.user.sessionToken = token;
   }
   const configured = Boolean(
     String(result.user.workbookName || '').trim() &&
@@ -312,13 +360,14 @@ function handleOnboardAction_(payload) {
     // entries script opens the correct spreadsheet explicitly instead of
     // relying on its own binding.
     spreadsheetId: result.user.spreadsheetId || '',
+    sessionToken: result.user.sessionToken || '',
     workbookUrl: result.user.workbookUrl || '',
     books: configured ? [result.user.workbookName] : []
   };
 }
 
 function handleVerifyOtpAction_(payload) {
-  const result = verifyOtp_(payload.credential, payload.otp);
+  const result = verifyOtp_(payload.email, payload.otp);
   const configured = Boolean(
     String(result.user.workbookName || '').trim() &&
     String(result.user.scriptUrl || '').trim()
@@ -332,16 +381,16 @@ function handleVerifyOtpAction_(payload) {
     book: result.user.workbookName,
     scriptUrl: result.user.scriptUrl,
     spreadsheetId: result.user.spreadsheetId || '',
+    sessionToken: result.user.sessionToken || '',
     workbookUrl: result.user.workbookUrl || '',
     books: configured ? [result.user.workbookName] : []
   };
 }
 
 function handleResendOtpAction_(payload) {
-  const profile = verifyGoogleCredential_(payload.credential);
-  const user = findUserOnBoard_(profile.email);
+  const user = findUserOnBoard_(String(payload.email || '').trim().toLowerCase());
   if (!user) throw new Error('Complete onboarding first');
-  if (user.onboardingVerified) return { ok: true, verified: true };
+  if (user.onboardingVerified) return { ok: true, verified: true, sessionToken: user.sessionToken || '' };
   sendOtp_(user, true);
   return { ok: true, requiresOtp: true };
 }
@@ -350,7 +399,7 @@ function handleResendOtpAction_(payload) {
  * Call this at the beginning of the existing doPost(e):
  *   const payload = JSON.parse(e.postData.contents);
  *   if (payload.action === 'onboard') return json_(handleOnboardAction_(payload));
- *   const access = requireUserBook_(payload.credential, payload.book);
+ *   const access = requireUserBook_(payload.sessionToken, payload.book);
  *   payload.book = access.user.workbookName;
  */
 function setupUserOnBoardSheet_() {
