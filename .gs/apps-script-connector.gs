@@ -159,7 +159,7 @@ function readBookEntries(sh) {
     });
 }
 
-function doGet(e) {
+function entriesDoGet_(e) {
   setActiveSpreadsheetId_(e && e.parameter && e.parameter.spreadsheetId);
   try {
     const access = requireUserBook_(e && e.parameter && e.parameter.sessionToken, e && e.parameter && e.parameter.book);
@@ -193,7 +193,7 @@ function doGet(e) {
   }
 }
 
-function doPost(e) {
+function entriesDoPost_(e) {
   const body = JSON.parse(e.postData.contents);
   setActiveSpreadsheetId_(body.spreadsheetId);
   try {

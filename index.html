@@ -341,7 +341,7 @@
       <input class="otp-input" id="otpInput" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" style="margin-top:12px;">
       <div class="modal-buttons">
         <button class="btn-save" id="verifyOtpBtn">Verify OTP</button>
-        <button class="btn-cancel" id="resendOtpBtn">Resend</button>
+        <button class="btn-cancel" id="resendOtpBtn" disabled>Resend in 10:00</button>
       </div>
     </div>
 
@@ -480,9 +480,11 @@ const state = {
   scriptUrl: null,
   spreadsheetId: null,
   saving: false,
-  otpRequired: false
+  otpRequired: false,
+  otpResendAt: 0
 };
 let pollTimer = null;
+let otpCountdownTimer = null;
 
 function todayStr(){
   const d = new Date();
@@ -530,8 +532,10 @@ function logOff(){
   sessionStorage.removeItem('khata_session_token');
   sessionStorage.removeItem('khata_email');
   if(pollTimer) clearInterval(pollTimer);
+  if(otpCountdownTimer) clearInterval(otpCountdownTimer);
   state.email = null; state.sessionToken = null; state.myName = null;
   state.otpRequired = false;
+  state.otpResendAt = 0;
   state.entries = []; state.books = []; state.archivedBooks = []; state.activeBook = null; state.loaded = false;
   state.scriptUrl = null; state.spreadsheetId = null;
   render();
@@ -672,6 +676,28 @@ async function resendOtp(){
   return data;
 }
 
+function startOtpResendCountdown(){
+  const button = document.getElementById('resendOtpBtn');
+  if(otpCountdownTimer) clearInterval(otpCountdownTimer);
+  const update = ()=>{
+    const remaining = Math.max(0, state.otpResendAt - Date.now());
+    if(!remaining){
+      button.disabled = false;
+      button.textContent = 'Resend OTP';
+      clearInterval(otpCountdownTimer);
+      otpCountdownTimer = null;
+      return;
+    }
+    const totalSeconds = Math.ceil(remaining / 1000);
+    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    button.disabled = true;
+    button.textContent = 'Resend in '+minutes+':'+seconds;
+  };
+  update();
+  otpCountdownTimer = setInterval(update, 1000);
+}
+
 function applySheetResponse(data){
   if(Array.isArray(data.books)) state.books = [...new Set(data.books)];
   if(data.activeBook) state.activeBook = data.activeBook;
@@ -694,11 +720,14 @@ async function loadAll(){
     const onboarded = await onboardUser();
     if(onboarded.requiresOtp){
       state.otpRequired = true;
+      state.otpResendAt = Date.now() + 10 * 60 * 1000;
       state.loaded = true;
       render();
+      startOtpResendCountdown();
       return;
     }
     state.otpRequired = false;
+    state.sessionToken = onboarded.sessionToken || null;
     const assignedBook = String(onboarded.book || '').trim();
     const assignedScriptUrl = String(onboarded.scriptUrl || '').trim();
     const isConfigured = Boolean(onboarded.configured && assignedBook && assignedScriptUrl);
@@ -733,7 +762,6 @@ async function loadAll(){
 }
 
 function schedulePoll(){
-  state.sessionToken = onboarded.sessionToken || null;
   if(!state.scriptUrl) return;
   pollTimer = setInterval(async ()=>{
     if(state.saving) return;
@@ -1223,10 +1251,14 @@ document.getElementById('resendOtpBtn').addEventListener('click', async ()=>{
   button.disabled = true;
   try{
     await resendOtp();
+    state.otpResendAt = Date.now() + 10 * 60 * 1000;
+    startOtpResendCountdown();
     document.getElementById('otpMessage').textContent = 'A new OTP was sent to '+state.email+'.';
   }catch(err){
     document.getElementById('otpMessage').textContent = err.message || 'Could not resend OTP';
-  }finally{ button.disabled = false; }
+  }finally{
+    if(Date.now() >= state.otpResendAt) button.disabled = false;
+  }
 });
 document.getElementById('btnGave').addEventListener('click', ()=>addEntry('gave'));
 document.getElementById('btnGot').addEventListener('click', ()=>addEntry('got'));

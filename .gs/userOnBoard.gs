@@ -3,7 +3,7 @@
  * Merge these functions into the Apps Script deployment used by the app.
  * Set GOOGLE_CLIENT_ID to the same web client ID used in index.html.
  */
-const USER_ONBOARD_SPREADSHEET_ID = '1DjmVesr0grY9xDJwTRqVHNVvX4Fizn2EwLHPx2Pj0RI';
+const USER_ONBOARD_SPREADSHEET_ID = '1KqL4d9KmoTNWAoJE5kaJBryGaSjIfgpr6ZRRjQmr50Y';
 const USER_ONBOARD_SHEET = 'userOnBoard';
 const MAX_BOOK_NAME_LENGTH = 100;
 // NOTE: GmailApp.sendEmail always sends from whichever Google account owns
@@ -240,6 +240,9 @@ function sendOtp_(user, force) {
   const now = new Date();
   const currentExpiry = user.otpExpiresAt instanceof Date ? user.otpExpiresAt : null;
   if (!force && user.createdOtp && currentExpiry && currentExpiry.getTime() > now.getTime()) return;
+  if (force && currentExpiry && currentExpiry.getTime() > now.getTime()) {
+    throw new Error('You can request a new OTP after the current OTP expires.');
+  }
   const cooldownKey = 'otp-sent-' + user.email;
   const cache = CacheService.getScriptCache();
   if (force && cache.get(cooldownKey)) {
@@ -450,7 +453,7 @@ function json_(value) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function doPost(e) {
+function onboardDoPost_(e) {
   try {
     const payload = JSON.parse(e.postData.contents || '{}');
     if (payload.action === 'verifyOtp') return json_(handleVerifyOtpAction_(payload));
@@ -462,7 +465,42 @@ function doPost(e) {
   }
 }
 
-function doGet() {
+function onboardDoGet_() {
   setupUserOnBoardSheet_();
   return json_({ok: true, service: 'userOnBoard'});
+}
+
+// ---------------------------------------------------------------------
+// SINGLE entry point for the whole deployment. Both this file and
+// apps-script-connector.gs must live in the SAME Apps Script project
+// (that's why apps-script-connector.gs's entries logic can call
+// requireUserBook_, which is defined here). A project can only have one
+// doGet/doPost, so this dispatcher decides whether a request is an
+// onboarding request (no book/entries data yet) or an entries request
+// (reading/writing the ledger) and routes it accordingly.
+//
+// The three onboarding actions are the only POST actions that don't
+// require a sessionToken yet, so they're the dispatch key. Everything
+// else (add/update/delete/settings/createBook/renameBook/deleteBook, and
+// all GET requests) goes to the entries connector, which itself enforces
+// the sessionToken via requireUserBook_.
+// ---------------------------------------------------------------------
+const ONBOARD_ACTIONS_ = ['onboard', 'verifyOtp', 'resendOtp'];
+
+function doPost(e) {
+  let payload;
+  try {
+    payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+  } catch (err) {
+    return json_({ ok: false, error: 'Invalid request body' });
+  }
+  if (ONBOARD_ACTIONS_.indexOf(payload.action) !== -1) {
+    return onboardDoPost_(e);
+  }
+  return entriesDoPost_(e);
+}
+
+function doGet(e) {
+  if (e && e.parameter && e.parameter.ping) return onboardDoGet_();
+  return entriesDoGet_(e);
 }
