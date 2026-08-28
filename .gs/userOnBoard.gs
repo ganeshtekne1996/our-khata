@@ -247,14 +247,16 @@ function sendOtp_(user, force) {
     .replace(otp, '<strong style="font-size:24px;letter-spacing:4px;">' + otp + '</strong>');
   const effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
   const aliases = GmailApp.getAliases().map(function(alias) { return String(alias).toLowerCase(); });
-  if (effectiveEmail !== OTP_SENDER_EMAIL && aliases.indexOf(OTP_SENDER_EMAIL) === -1) {
+  const senderIsAlias = aliases.indexOf(OTP_SENDER_EMAIL) !== -1;
+  if (effectiveEmail !== OTP_SENDER_EMAIL && !senderIsAlias) {
     throw new Error('Email sender is not configured. Add ' + OTP_SENDER_EMAIL + ' as a Gmail Send mail as address for the Apps Script account.');
   }
-  GmailApp.sendEmail(user.email, subject, body, {
-    from: OTP_SENDER_EMAIL,
+  const mailOptions = {
     name: OTP_SENDER_NAME,
     htmlBody: htmlBody
-  });
+  };
+  if (senderIsAlias) mailOptions.from = OTP_SENDER_EMAIL;
+  GmailApp.sendEmail(user.email, subject, body, mailOptions);
 }
 
 function verifyOtp_(credential, submittedOtp) {
