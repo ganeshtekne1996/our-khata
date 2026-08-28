@@ -760,6 +760,7 @@ async function loadAll(){
     setSyncStatus('Synced ✓ — updates every 15s');
   }catch(err){
     console.error('load error', err);
+    document.getElementById('setupMessage').textContent = err.message || 'Onboarding failed. Please try again.';
     setSyncStatus('Sync failed — check the Sheet URL / connection');
   }
   state.loaded = true;
