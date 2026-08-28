@@ -711,6 +711,7 @@ async function loadAll(){
     state.activeBook = savedBook || assignedBook;
     state.books = Array.isArray(onboarded.books) && onboarded.books.length
       ? [...new Set(onboarded.books)] : [assignedBook];
+    if(savedBook && !state.books.includes(savedBook)) state.books.push(savedBook);
     const sheetData = await fetchFromSheet(state.activeBook);
     applySheetResponse(sheetData);
     await saveBookPref(state.activeBook);
