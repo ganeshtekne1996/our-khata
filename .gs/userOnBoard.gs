@@ -7,6 +7,8 @@ const GOOGLE_CLIENT_ID = '938761019761-ur365n4lqqav25vs2eb38clqajvhb0f3.apps.goo
 const USER_ONBOARD_SPREADSHEET_ID = '1DjmVesr0grY9xDJwTRqVHNVvX4Fizn2EwLHPx2Pj0RI';
 const USER_ONBOARD_SHEET = 'userOnBoard';
 const MAX_BOOK_NAME_LENGTH = 100;
+const OTP_SENDER_EMAIL = 'ganesh.tekne101@gmail.com';
+const OTP_SENDER_NAME = 'Our Khata';
 
 function getUserOnBoardSheet_() {
   const spreadsheet = SpreadsheetApp.openById(USER_ONBOARD_SPREADSHEET_ID);
@@ -224,11 +226,34 @@ function sendOtp_(user, force) {
   sheet.getRange(user.row, columns.userenteredotp + 1).setNumberFormat('@').setValue('');
   sheet.getRange(user.row, columns.otpexpiresat + 1).setValue(expiresAt);
   sheet.getRange(user.row, columns.otpattempts + 1).setValue(0);
-  CacheService.getScriptCache().put(cooldownKey, '1', 60);
-  MailApp.sendEmail({
-    to: user.email,
-    subject: 'Your Our Khata verification code',
-    body: 'Your Our Khata verification code is ' + otp + '. It expires in 10 minutes.'
+  const subject = 'Your Our Khata verification code';
+  const body = [
+    'Hello ' + (user.name || 'there') + ',',
+    '',
+    'Your Our Khata verification code is: ' + otp,
+    '',
+    'This code expires in 10 minutes. Enter it in the Our Khata app to complete your first-time sign-in.',
+    '',
+    'If you did not request this code, you can safely ignore this email.',
+    '',
+    'Regards,',
+    'Our Khata'
+  ].join('\n');
+  const htmlBody = body
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>')
+    .replace(otp, '<strong style="font-size:24px;letter-spacing:4px;">' + otp + '</strong>');
+  const effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  const aliases = GmailApp.getAliases().map(function(alias) { return String(alias).toLowerCase(); });
+  if (effectiveEmail !== OTP_SENDER_EMAIL && aliases.indexOf(OTP_SENDER_EMAIL) === -1) {
+    throw new Error('Email sender is not configured. Add ' + OTP_SENDER_EMAIL + ' as a Gmail Send mail as address for the Apps Script account.');
+  }
+  GmailApp.sendEmail(user.email, subject, body, {
+    from: OTP_SENDER_EMAIL,
+    name: OTP_SENDER_NAME,
+    htmlBody: htmlBody
   });
 }
 
