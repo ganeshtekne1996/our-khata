@@ -13,8 +13,9 @@ function getUserOnBoardSheet_() {
   let sheet = spreadsheet.getSheetByName(USER_ONBOARD_SHEET);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(USER_ONBOARD_SHEET);
-    sheet.getRange(1, 1, 1, 5).setValues([[
-      'email', 'name', 'workbookName', 'scriptUrl', 'createdAt'
+    sheet.getRange(1, 1, 1, 11).setValues([[
+      'email', 'name', 'workbookName', 'scriptUrl', 'SHEET_ID', 'createdAt',
+      'created_OTP', 'userEntered_OTP', 'otpExpiresAt', 'onboardingVerified', 'otpAttempts'
     ]]);
     sheet.setFrozenRows(1);
   }
@@ -28,19 +29,43 @@ function getUserOnBoardSheet_() {
 
 function getUserOnBoardColumns_() {
   const sheet = getUserOnBoardSheet_();
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+  let rawHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const normalizedHeaders = rawHeaders.map(function(header) {
+    return String(header).trim().toLowerCase().replace(/[\s_-]+/g, '');
+  });
+  const scriptUrlIndex = normalizedHeaders.indexOf('scripturl');
+  if (scriptUrlIndex === -1) throw new Error('Missing userOnBoard column: scripturl');
+  const sheetIdIndex = normalizedHeaders.indexOf('sheetid');
+  if (sheetIdIndex === -1) {
+    sheet.insertColumnAfter(scriptUrlIndex + 1);
+    sheet.getRange(1, scriptUrlIndex + 2).setValue('SHEET_ID');
+    rawHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  } else if (sheetIdIndex !== scriptUrlIndex + 1) {
+    sheet.moveColumns(sheet.getRange(1, sheetIdIndex + 1, sheet.getMaxRows(), 1), scriptUrlIndex + 2);
+    rawHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  }
+  const managedHeaders = ['created_OTP', 'userEntered_OTP', 'otpExpiresAt', 'onboardingVerified', 'otpAttempts'];
+  managedHeaders.forEach(function(requiredHeader) {
+    const normalized = requiredHeader.toLowerCase().replace(/[\s_-]+/g, '');
+    const exists = rawHeaders.some(function(header) {
+      return String(header).trim().toLowerCase().replace(/[\s_-]+/g, '') === normalized;
+    });
+    if (!exists) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(requiredHeader);
+      rawHeaders.push(requiredHeader);
+    }
+  });
+  const headers = rawHeaders
     .map(function(header) {
       return String(header).trim().toLowerCase().replace(/[\s_-]+/g, '');
     });
   const columns = {};
   headers.forEach(function(header, index) { columns[header] = index; });
-  ['email', 'name', 'workbookname', 'scripturl', 'createdat'].forEach(function(required) {
+  ['email', 'name', 'workbookname', 'scripturl', 'createdat', 'createdotp', 'userenteredotp', 'otpexpiresat', 'onboardingverified', 'otpattempts'].forEach(function(required) {
     if (columns[required] === undefined) throw new Error('Missing userOnBoard column: ' + required);
   });
-  // workbookurl and sheetid are both optional: add a column with either
-  // header (any case/spacing) to pin each user's data to a specific
-  // spreadsheet. sheetid should hold the raw spreadsheet ID; workbookurl
-  // can hold a full Sheets link instead — whichever is easier to paste.
+  // workbookurl remains optional; SHEET_ID can hold the raw spreadsheet ID
+  // to pin each user's data to a specific spreadsheet.
   // Until one is added, onboarding still works exactly as before.
   return columns;
 }
@@ -101,7 +126,12 @@ function findUserOnBoard_(email) {
       workbookName: String(values[row][columns.workbookname] || '').trim(),
       scriptUrl: String(values[row][columns.scripturl] || '').trim(),
       workbookUrl: rawWorkbookUrl,
-      spreadsheetId: parseSpreadsheetId_(rawSheetId) || parseSpreadsheetId_(rawWorkbookUrl)
+      spreadsheetId: parseSpreadsheetId_(rawSheetId) || parseSpreadsheetId_(rawWorkbookUrl),
+      createdOtp: String(values[row][columns.createdotp] || '').trim(),
+      userEnteredOtp: String(values[row][columns.userenteredotp] || '').trim(),
+      otpExpiresAt: values[row][columns.otpexpiresat],
+      onboardingVerified: String(values[row][columns.onboardingverified] || '').toLowerCase() === 'true',
+      otpAttempts: parseInt(values[row][columns.otpattempts], 10) || 0
     };
     // If duplicate rows exist for this email (e.g. from a race before this
     // fix), prefer the one that has actually been configured with a
@@ -147,6 +177,7 @@ function requireUserBook_(credential, requestedBook) {
   const profile = verifyGoogleCredential_(credential);
   const user = findUserOnBoard_(profile.email);
   if (!user) throw new Error('Complete onboarding first');
+  if (!user.onboardingVerified) throw new Error('Verify your email before accessing the app');
   if (requestedBook && requestedBook !== user.workbookName) {
     throw new Error('You do not have access to this book');
   }
@@ -169,7 +200,61 @@ function accessWorkbookNameForUser_(credential) {
   const profile = verifyGoogleCredential_(credential);
   const user = findUserOnBoard_(profile.email);
   if (!user) throw new Error('Complete onboarding first');
+  if (!user.onboardingVerified) throw new Error('Verify your email before accessing the app');
   return user.workbookName;
+}
+
+function generateOtp_() {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+}
+
+function sendOtp_(user, force) {
+  const sheet = getUserOnBoardSheet_();
+  const columns = getUserOnBoardColumns_();
+  const now = new Date();
+  const currentExpiry = user.otpExpiresAt instanceof Date ? user.otpExpiresAt : null;
+  if (!force && user.createdOtp && currentExpiry && currentExpiry.getTime() > now.getTime()) return;
+  const cooldownKey = 'otp-sent-' + user.email;
+  if (force && CacheService.getScriptCache().get(cooldownKey)) {
+    throw new Error('Please wait a minute before requesting another OTP.');
+  }
+  const otp = generateOtp_();
+  const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+  sheet.getRange(user.row, columns.createdotp + 1).setNumberFormat('@').setValue(otp);
+  sheet.getRange(user.row, columns.userenteredotp + 1).setNumberFormat('@').setValue('');
+  sheet.getRange(user.row, columns.otpexpiresat + 1).setValue(expiresAt);
+  sheet.getRange(user.row, columns.otpattempts + 1).setValue(0);
+  CacheService.getScriptCache().put(cooldownKey, '1', 60);
+  MailApp.sendEmail({
+    to: user.email,
+    subject: 'Your Our Khata verification code',
+    body: 'Your Our Khata verification code is ' + otp + '. It expires in 10 minutes.'
+  });
+}
+
+function verifyOtp_(credential, submittedOtp) {
+  const profile = verifyGoogleCredential_(credential);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getUserOnBoardSheet_();
+    const columns = getUserOnBoardColumns_();
+    const user = findUserOnBoard_(profile.email);
+    if (!user) throw new Error('Complete onboarding first');
+    const otp = String(submittedOtp || '').trim();
+    sheet.getRange(user.row, columns.userenteredotp + 1).setNumberFormat('@').setValue(otp);
+    if (user.onboardingVerified) return { profile: profile, user: user };
+    if (user.otpAttempts >= 5) throw new Error('Too many incorrect attempts. Request a new OTP.');
+    const expiry = user.otpExpiresAt instanceof Date ? user.otpExpiresAt : null;
+    if (!expiry || expiry.getTime() < Date.now()) throw new Error('This OTP has expired. Request a new OTP.');
+    sheet.getRange(user.row, columns.otpattempts + 1).setValue(user.otpAttempts + 1);
+    if (!/^\d{4}$/.test(otp) || otp !== user.createdOtp) throw new Error('Incorrect OTP');
+    sheet.getRange(user.row, columns.onboardingverified + 1).setValue(true);
+    user.onboardingVerified = true;
+    return { profile: profile, user: user };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
@@ -179,6 +264,10 @@ function accessWorkbookNameForUser_(credential) {
  */
 function handleOnboardAction_(payload) {
   const result = onboardUser_(payload.credential, payload.name);
+  if (!result.user.onboardingVerified) {
+    sendOtp_(result.user, false);
+    return { ok: true, email: result.profile.email, requiresOtp: true };
+  }
   const configured = Boolean(
     String(result.user.workbookName || '').trim() &&
     String(result.user.scriptUrl || '').trim()
@@ -199,6 +288,35 @@ function handleOnboardAction_(payload) {
     workbookUrl: result.user.workbookUrl || '',
     books: configured ? [result.user.workbookName] : []
   };
+}
+
+function handleVerifyOtpAction_(payload) {
+  const result = verifyOtp_(payload.credential, payload.otp);
+  const configured = Boolean(
+    String(result.user.workbookName || '').trim() &&
+    String(result.user.scriptUrl || '').trim()
+  );
+  return {
+    ok: true,
+    verified: true,
+    email: result.profile.email,
+    name: result.user.name,
+    configured: configured,
+    book: result.user.workbookName,
+    scriptUrl: result.user.scriptUrl,
+    spreadsheetId: result.user.spreadsheetId || '',
+    workbookUrl: result.user.workbookUrl || '',
+    books: configured ? [result.user.workbookName] : []
+  };
+}
+
+function handleResendOtpAction_(payload) {
+  const profile = verifyGoogleCredential_(payload.credential);
+  const user = findUserOnBoard_(profile.email);
+  if (!user) throw new Error('Complete onboarding first');
+  if (user.onboardingVerified) return { ok: true, verified: true };
+  sendOtp_(user, true);
+  return { ok: true, requiresOtp: true };
 }
 
 /**
@@ -259,6 +377,8 @@ function json_(value) {
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents || '{}');
+    if (payload.action === 'verifyOtp') return json_(handleVerifyOtpAction_(payload));
+    if (payload.action === 'resendOtp') return json_(handleResendOtpAction_(payload));
     if (payload.action !== 'onboard') throw new Error('Unsupported action');
     return json_(handleOnboardAction_(payload));
   } catch (err) {
